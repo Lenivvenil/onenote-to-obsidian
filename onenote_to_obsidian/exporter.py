@@ -1,0 +1,221 @@
+"""Main orchestrator: enumerate OneNote notebooks and export to Obsidian Markdown."""
+
+import logging
+from pathlib import Path
+
+from .config import Config
+from .auth import AuthManager
+from .graph_client import GraphClient, GraphAPIError
+from .onenote_api import OneNoteAPI, Notebook, Section, SectionGroup, Page
+from .html_converter import preprocess_onenote_html, convert_page_html
+from .resource_downloader import ResourceDownloader
+from .state import ExportState
+from .utils import sanitize_filename, deduplicate_path
+
+logger = logging.getLogger(__name__)
+
+
+class OneNoteExporter:
+    """Exports OneNote notebooks to Obsidian-compatible Markdown files."""
+
+    def __init__(self, config: Config):
+        self._config = config
+        self._vault_path = Path(config.vault_path)
+        self._attachments_folder = config.attachments_folder_name
+
+        self._auth = AuthManager(config)
+        self._client = GraphClient(self._auth)
+        self._api = OneNoteAPI(self._client)
+        self._downloader = ResourceDownloader(self._api)
+        self._state = ExportState(config.config_dir_path / "export_state.json")
+
+        self._stats = {"exported": 0, "skipped": 0, "errors": 0, "total": 0}
+
+    def export_all(self, notebook_filter: str | None = None):
+        """Export all notebooks (or a specific one by name).
+
+        Args:
+            notebook_filter: If set, only export notebook with this display name
+        """
+        # Verify vault path
+        self._vault_path.mkdir(parents=True, exist_ok=True)
+
+        # Phase 1: Enumerate
+        print("Получение списка блокнотов...")
+        notebooks = self._api.list_notebooks()
+
+        if notebook_filter:
+            notebooks = [
+                nb for nb in notebooks
+                if nb.display_name.lower() == notebook_filter.lower()
+            ]
+            if not notebooks:
+                print(f"Блокнот '{notebook_filter}' не найден.")
+                print("Доступные блокноты:")
+                all_nbs = self._api.list_notebooks()
+                for nb in all_nbs:
+                    print(f"  - {nb.display_name}")
+                return
+
+        print(f"Найдено блокнотов: {len(notebooks)}")
+
+        total_pages = 0
+        for nb in notebooks:
+            self._api.enumerate_notebook(nb)
+            count = self._count_pages(nb)
+            total_pages += count
+            print(f"  [{nb.display_name}] секций: {self._count_sections(nb)}, страниц: {count}")
+
+        self._stats["total"] = total_pages
+        print(f"\nВсего страниц для экспорта: {total_pages}")
+        if self._state.count > 0:
+            print(f"Ранее экспортировано: {self._state.count} (неизменённые будут пропущены)")
+        print()
+
+        # Phase 2: Export
+        for nb in notebooks:
+            nb_dir = self._vault_path / sanitize_filename(nb.display_name)
+            nb_dir.mkdir(parents=True, exist_ok=True)
+
+            # Export sections directly under notebook
+            for section in nb.sections:
+                self._export_section(section, nb_dir)
+
+            # Export section groups (recursive)
+            for sg in nb.section_groups:
+                self._export_section_group(sg, nb_dir)
+
+        # Summary
+        s = self._stats
+        print()
+        print("=" * 50)
+        print(f"Готово!")
+        print(f"  Экспортировано: {s['exported']}")
+        print(f"  Пропущено (без изменений): {s['skipped']}")
+        print(f"  Ошибки: {s['errors']}")
+        print(f"  Всего обработано: {s['exported'] + s['skipped'] + s['errors']}/{s['total']}")
+        print(f"\nФайлы сохранены в: {self._vault_path}")
+
+    def _export_section_group(self, group: SectionGroup, parent_dir: Path):
+        """Recursively export a section group to a subdirectory."""
+        group_dir = parent_dir / sanitize_filename(group.display_name)
+        group_dir.mkdir(parents=True, exist_ok=True)
+
+        for section in group.sections:
+            self._export_section(section, group_dir)
+
+        for nested_sg in group.section_groups:
+            self._export_section_group(nested_sg, group_dir)
+
+    def _export_section(self, section: Section, parent_dir: Path):
+        """Export all pages in a section to a subdirectory."""
+        section_dir = parent_dir / sanitize_filename(section.display_name)
+        section_dir.mkdir(parents=True, exist_ok=True)
+        attachments_dir = section_dir / self._attachments_folder
+
+        used_md_paths: set[Path] = set()
+
+        for page in section.pages:
+            processed = self._stats["exported"] + self._stats["skipped"] + self._stats["errors"]
+            progress = f"[{processed + 1}/{self._stats['total']}]"
+
+            # Check if already exported and unchanged
+            if self._state.is_exported(page.id, page.last_modified_time):
+                self._stats["skipped"] += 1
+                logger.debug("%s Skipped (unchanged): %s", progress, page.title)
+                continue
+
+            try:
+                self._export_page(page, section_dir, attachments_dir, used_md_paths)
+                self._state.mark_exported(page.id, page.last_modified_time)
+                self._stats["exported"] += 1
+                print(f"  {progress} {page.title}")
+            except GraphAPIError as e:
+                self._stats["errors"] += 1
+                logger.error("%s ОШИБКА '%s': %s", progress, page.title, e)
+                print(f"  {progress} ОШИБКА: {page.title} — {e}")
+            except Exception as e:
+                self._stats["errors"] += 1
+                logger.error(
+                    "%s ОШИБКА '%s': %s", progress, page.title, e, exc_info=True
+                )
+                print(f"  {progress} ОШИБКА: {page.title} — {e}")
+
+    def _export_page(
+        self,
+        page: Page,
+        section_dir: Path,
+        attachments_dir: Path,
+        used_md_paths: set[Path],
+    ):
+        """Export a single page: HTML → resources → Markdown → file."""
+        # 1. Get page HTML content
+        html_content = self._api.get_page_content(page.id)
+
+        # 2. Pre-process HTML: extract resource URLs, clean up
+        cleaned_html, resource_urls = preprocess_onenote_html(html_content)
+
+        # 3. Download resources (images, attachments)
+        resource_map = self._downloader.download_resources(
+            resource_urls, attachments_dir
+        )
+
+        # 4. Convert HTML to Markdown
+        markdown = convert_page_html(
+            cleaned_html,
+            resource_map=resource_map,
+            attachments_rel_path=self._attachments_folder,
+        )
+
+        # 5. Build YAML frontmatter
+        frontmatter = self._build_frontmatter(page)
+
+        # 6. Write .md file
+        safe_title = sanitize_filename(page.title)
+        md_path = section_dir / f"{safe_title}.md"
+        md_path = deduplicate_path(md_path, existing_paths=used_md_paths)
+        used_md_paths.add(md_path)
+
+        md_path.write_text(frontmatter + markdown, encoding="utf-8")
+
+    def _build_frontmatter(self, page: Page) -> str:
+        """Build YAML frontmatter for an exported page."""
+        lines = ["---"]
+        if page.created_time:
+            lines.append(f"created: {page.created_time}")
+        if page.last_modified_time:
+            lines.append(f"modified: {page.last_modified_time}")
+        lines.append("source: onenote")
+        lines.append(f"onenote_id: \"{page.id}\"")
+        lines.append("---")
+        lines.append("")
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _count_pages(notebook: Notebook) -> int:
+        """Count total pages in a notebook (including section groups)."""
+        count = sum(len(s.pages) for s in notebook.sections)
+        for sg in notebook.section_groups:
+            count += OneNoteExporter._count_pages_in_group(sg)
+        return count
+
+    @staticmethod
+    def _count_pages_in_group(group: SectionGroup) -> int:
+        count = sum(len(s.pages) for s in group.sections)
+        for sg in group.section_groups:
+            count += OneNoteExporter._count_pages_in_group(sg)
+        return count
+
+    @staticmethod
+    def _count_sections(notebook: Notebook) -> int:
+        count = len(notebook.sections)
+        for sg in notebook.section_groups:
+            count += OneNoteExporter._count_sections_in_group(sg)
+        return count
+
+    @staticmethod
+    def _count_sections_in_group(group: SectionGroup) -> int:
+        count = len(group.sections)
+        for sg in group.section_groups:
+            count += OneNoteExporter._count_sections_in_group(sg)
+        return count
