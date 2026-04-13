@@ -1,0 +1,10 @@
+services:
+  onenote-exporter:
+    build: .
+    image: onenote-to-obsidian:latest
+    stdin_open: true
+    tty: true
+    volumes:
+      - ~/.onenote_exporter:/home/appuser/.onenote_exporter
+      - ~/ObsidianVault:/home/appuser/ObsidianVault
+    restart: "no"

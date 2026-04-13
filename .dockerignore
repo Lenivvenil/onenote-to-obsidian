@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+venv
+.pytest_cache
+.ruff_cache
+.coverage
+coverage.*
+*.egg-info
+__pycache__
+tests/
+docs/
+site/
+overrides/
+.claude/
+.DS_Store

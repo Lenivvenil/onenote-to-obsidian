@@ -28,6 +28,27 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
+### Docker
+
+No Python required. Just Docker:
+
+```bash
+docker run -it --rm \
+  -v ~/.onenote_exporter:/home/appuser/.onenote_exporter \
+  -v ~/ObsidianVault:/home/appuser/ObsidianVault \
+  ghcr.io/lenivvenil/onenote-to-obsidian
+```
+
+The `-it` flags are needed for the interactive OAuth login on first run. Volumes mount your config (so tokens persist) and vault (so exports land on your disk).
+
+Or with Docker Compose:
+
+```bash
+docker compose run onenote-exporter
+docker compose run onenote-exporter --list
+docker compose run onenote-exporter --notebook "Work Notes"
+```
+
 ## First run
 
 ```bash

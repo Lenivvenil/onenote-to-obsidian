@@ -51,6 +51,15 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
+### Docker
+
+```bash
+docker run -it --rm \
+  -v ~/.onenote_exporter:/home/appuser/.onenote_exporter \
+  -v ~/ObsidianVault:/home/appuser/ObsidianVault \
+  ghcr.io/lenivvenil/onenote-to-obsidian
+```
+
 ## Quick Start
 
 ```bash
