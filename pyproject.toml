@@ -41,12 +41,16 @@ dev = [
     "pytest-mock>=3.0",
     "responses>=0.23.0",
 ]
+docs = [
+    "mkdocs-material>=9.0",
+]
 
 [project.scripts]
 onenote-to-obsidian = "onenote_to_obsidian.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/Lenivvenil/onenote-to-obsidian"
+Documentation = "https://lenivvenil.github.io/onenote-to-obsidian/"
 Repository = "https://github.com/Lenivvenil/onenote-to-obsidian.git"
 Issues = "https://github.com/Lenivvenil/onenote-to-obsidian/issues"
 Changelog = "https://github.com/Lenivvenil/onenote-to-obsidian/releases"

@@ -7,6 +7,7 @@
 [![PyPI Version](https://img.shields.io/pypi/v/onenote-to-obsidian.svg)](https://pypi.org/project/onenote-to-obsidian/)
 [![Downloads](https://img.shields.io/pypi/dm/onenote-to-obsidian.svg)](https://pypi.org/project/onenote-to-obsidian/)
 [![GitHub Release](https://img.shields.io/github/v/release/Lenivvenil/onenote-to-obsidian)](https://github.com/Lenivvenil/onenote-to-obsidian/releases)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://lenivvenil.github.io/onenote-to-obsidian/)
 
 Export your Microsoft OneNote notebooks to Obsidian-compatible Markdown files via Microsoft Graph API.
 

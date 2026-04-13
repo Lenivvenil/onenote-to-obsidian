@@ -22,6 +22,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# MkDocs
+site/
+
 # Project-specific
 token_cache.json
 export_state.json

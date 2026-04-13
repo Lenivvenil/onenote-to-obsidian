@@ -1,0 +1,48 @@
+site_name: OneNote to Obsidian Exporter
+site_url: https://lenivvenil.github.io/onenote-to-obsidian/
+site_description: Export OneNote notebooks to Obsidian-compatible Markdown via Microsoft Graph API
+site_author: Ivan Kuzmin
+
+repo_name: Lenivvenil/onenote-to-obsidian
+repo_url: https://github.com/Lenivvenil/onenote-to-obsidian
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Usage: usage.md
+  - Configuration: configuration.md
+  - FAQ: faq.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
