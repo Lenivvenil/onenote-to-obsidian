@@ -31,8 +31,8 @@ class GraphClient:
         self._session = requests.Session()
         self._session.headers["Accept"] = "application/json"
 
-    def _get_headers(self) -> dict:
-        token = self._auth.get_token()
+    def _get_headers(self, force_refresh: bool = False) -> dict:
+        token = self._auth.get_token(force_refresh=force_refresh)
         return {"Authorization": f"Bearer {token}"}
 
     def _request_with_retry(
@@ -65,9 +65,9 @@ class GraphClient:
                 return resp
 
             if resp.status_code == 401 and attempt == 0:
-                # Token might be expired; force refresh
-                logger.info("Got 401, refreshing token...")
-                headers = self._get_headers()
+                # Token might be expired; force refresh from identity provider
+                logger.info("Got 401, forcing token refresh...")
+                headers = self._get_headers(force_refresh=True)
                 continue
 
             if resp.status_code == 429:

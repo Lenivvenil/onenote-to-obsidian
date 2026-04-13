@@ -146,7 +146,7 @@ class OneNoteAPI:
 
         return notebook
 
-    def _enumerate_section_group(self, group: SectionGroup):
+    def _enumerate_section_group(self, group: SectionGroup) -> None:
         """Recursively enumerate sections and nested groups."""
         logger.info("  Section group: %s", group.display_name)
 

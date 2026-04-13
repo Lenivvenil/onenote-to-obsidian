@@ -106,8 +106,8 @@ class TestExportAll:
         md_file = tmp_path / "vault" / "Test Notebook" / "Test Section" / "Test Page.md"
         content = md_file.read_text()
         assert "---" in content
-        assert "created: 2024-01-15T10:30:00Z" in content
-        assert "modified: 2024-06-20T14:22:00Z" in content
+        assert 'created: "2024-01-15T10:30:00Z"' in content
+        assert 'modified: "2024-06-20T14:22:00Z"' in content
         assert "source: onenote" in content
         assert 'onenote_id: "page-001"' in content
 

@@ -10,36 +10,35 @@ DEFAULT_CONFIG_DIR = Path.home() / ".onenote_exporter"
 DEFAULT_AUTHORITY = "https://login.microsoftonline.com/common"
 DEFAULT_ATTACHMENTS_FOLDER = "attachments"
 
-# Microsoft Office — предзарегистрированное приложение Microsoft,
-# имеет scopes Notes.Read, Notes.ReadWrite для Graph API.
-# Не требует собственной регистрации в Azure AD.
+# Microsoft Office — pre-registered Microsoft app with
+# Notes.Read, Notes.ReadWrite scopes for Graph API.
+# No custom Azure AD registration required.
 DEFAULT_CLIENT_ID = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
 
-# Fallback: Microsoft Teams — тоже имеет Notes.ReadWrite.All
+# Fallback: Microsoft Teams — also has Notes.ReadWrite.All
 FALLBACK_CLIENT_ID = "1fec8e78-bce4-4aaf-ab1b-5451cc387264"
 
 DEFAULT_SCOPES = ["Notes.Read", "Notes.ReadWrite", "User.Read"]
 
 CUSTOM_SETUP_INSTRUCTIONS = """\
 ╔══════════════════════════════════════════════════════════════════╗
-║   OneNote → Obsidian Exporter: Настройка кастомного client_id   ║
+║   OneNote → Obsidian Exporter: Custom Client ID Configuration   ║
 ╚══════════════════════════════════════════════════════════════════╝
 
-По умолчанию инструмент использует публичный client_id от Microsoft Office,
-который не требует регистрации приложения. Но если вы хотите использовать
-свой собственный — введите его ниже.
+By default, the tool uses Microsoft Office's public client_id which
+requires no app registration. If you want to use your own — enter it below.
 
-Для регистрации своего приложения:
-  1. Создайте бесплатный Azure-аккаунт на https://portal.azure.com
+To register your own app:
+  1. Create a free Azure account at https://portal.azure.com
   2. Microsoft Entra ID → App registrations → New registration
-  3. Supported account types: «Accounts in any organizational directory
-     and personal Microsoft accounts»
+  3. Supported account types: "Accounts in any organizational directory
+     and personal Microsoft accounts"
   4. Redirect URI: Public client → https://login.microsoftonline.com/common/oauth2/nativeclient
   5. Authentication → Allow public client flows = Yes
   6. API permissions → Microsoft Graph → Delegated:
      Notes.Read, Notes.ReadWrite, User.Read
 
-Или нажмите Enter для использования client_id по умолчанию (Microsoft Office).
+Press Enter to use the default client_id (Microsoft Office).
 """
 
 
@@ -91,14 +90,14 @@ class Config:
         if force_setup:
             # Interactive setup for custom client_id
             print(CUSTOM_SETUP_INSTRUCTIONS)
-            client_id = input("Application (client) ID [Enter = по умолчанию]: ").strip()
+            client_id = input("Application (client) ID [Enter = default]: ").strip()
             if not client_id:
                 client_id = DEFAULT_CLIENT_ID
-                print(f"Используется client_id по умолчанию: Microsoft Office")
+                print("Using default client_id: Microsoft Office")
         else:
-            # Автоматическое создание конфига с дефолтным client_id
+            # Auto-create config with default client_id
             client_id = DEFAULT_CLIENT_ID
-            print("Создаю конфигурацию с client_id по умолчанию (Microsoft Office)...")
+            print("Creating configuration with default client_id (Microsoft Office)...")
 
         config = cls(
             client_id=client_id,
@@ -106,5 +105,5 @@ class Config:
             config_dir=str(config_dir),
         )
         config.save()
-        print(f"Конфигурация сохранена в {config.config_file}\n")
+        print(f"Configuration saved to {config.config_file}\n")
         return config

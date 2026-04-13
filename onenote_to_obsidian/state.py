@@ -19,7 +19,7 @@ class ExportState:
         self._exported_pages: dict[str, str] = {}  # page_id -> last_modified_time
         self._load()
 
-    def _load(self):
+    def _load(self) -> None:
         if self._state_path.exists():
             try:
                 data = json.loads(self._state_path.read_text())
@@ -28,7 +28,7 @@ class ExportState:
                     "Loaded export state: %d pages tracked",
                     len(self._exported_pages),
                 )
-            except (json.JSONDecodeError, Exception) as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logger.warning("Failed to load export state: %s", e)
                 self._exported_pages = {}
 
@@ -36,18 +36,18 @@ class ExportState:
         """Check if a page was already exported with this modification time."""
         return self._exported_pages.get(page_id) == last_modified
 
-    def mark_exported(self, page_id: str, last_modified: str):
+    def mark_exported(self, page_id: str, last_modified: str) -> None:
         """Record that a page has been successfully exported."""
         self._exported_pages[page_id] = last_modified
         self._save()
 
-    def _save(self):
+    def _save(self) -> None:
         self._state_path.parent.mkdir(parents=True, exist_ok=True)
         self._state_path.write_text(
             json.dumps({"exported_pages": self._exported_pages}, indent=2)
         )
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all export state (forces full re-export)."""
         self._exported_pages.clear()
         if self._state_path.exists():

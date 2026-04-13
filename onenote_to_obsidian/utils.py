@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from pathlib import Path
 
 
 def sanitize_filename(name: str, max_length: int = 200) -> str:
@@ -19,7 +20,7 @@ def sanitize_filename(name: str, max_length: int = 200) -> str:
     return name or "Untitled"
 
 
-def deduplicate_path(path, existing_paths=None):
+def deduplicate_path(path: Path, existing_paths: set[Path] | None = None) -> Path:
     """If path stem already used, append _1, _2, etc.
 
     Args:

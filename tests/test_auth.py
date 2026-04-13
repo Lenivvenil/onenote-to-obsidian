@@ -244,7 +244,7 @@ class TestDeviceCodeFlow:
 
             # Verify that fallback message is printed
             print_calls = [str(call) for call in mock_print.call_args_list]
-            assert any("Аккаунт не поддерживается" in str(c) for c in print_calls)
+            assert any("Account not supported" in str(c) for c in print_calls)
 
     def test_device_flow_aadsts65001_consent_error(
         self, sample_config, mock_token_cache
@@ -270,7 +270,7 @@ class TestDeviceCodeFlow:
                 auth._device_code_flow()
 
             print_calls = [str(call) for call in mock_print.call_args_list]
-            assert any("Требуется согласие" in str(c) for c in print_calls)
+            assert any("Consent required" in str(c) for c in print_calls)
 
     def test_device_flow_aadsts7000218_device_code_flow_not_supported(
         self, sample_config, mock_token_cache
@@ -335,7 +335,7 @@ class TestSuggestFallback:
 
             print_calls = [str(call) for call in mock_print.call_args_list]
             assert any("Azure" in str(c) or "portal.azure.com" in str(c) for c in print_calls)
-            assert any("Все встроенные" in str(c) for c in print_calls)
+            assert any("All built-in" in str(c) for c in print_calls)
 
 
 class TestLoadCache:
@@ -386,7 +386,7 @@ class TestLoadCache:
 
         with patch("onenote_to_obsidian.auth.msal.PublicClientApplication"), \
              patch("onenote_to_obsidian.auth.msal.SerializableTokenCache", return_value=mock_token_cache):
-            mock_token_cache.deserialize.side_effect = Exception("Deserialization failed")
+            mock_token_cache.deserialize.side_effect = ValueError("Deserialization failed")
             # Should not raise
             auth = AuthManager(sample_config)
 

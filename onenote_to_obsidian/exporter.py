@@ -1,5 +1,7 @@
 """Main orchestrator: enumerate OneNote notebooks and export to Obsidian Markdown."""
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 
@@ -31,7 +33,7 @@ class OneNoteExporter:
 
         self._stats = {"exported": 0, "skipped": 0, "errors": 0, "total": 0}
 
-    def export_all(self, notebook_filter: str | None = None):
+    def export_all(self, notebook_filter: str | None = None) -> None:
         """Export all notebooks (or a specific one by name).
 
         Args:
@@ -41,7 +43,7 @@ class OneNoteExporter:
         self._vault_path.mkdir(parents=True, exist_ok=True)
 
         # Phase 1: Enumerate
-        print("Получение списка блокнотов...")
+        print("Fetching notebooks...")
         notebooks = self._api.list_notebooks()
 
         if notebook_filter:
@@ -50,26 +52,26 @@ class OneNoteExporter:
                 if nb.display_name.lower() == notebook_filter.lower()
             ]
             if not notebooks:
-                print(f"Блокнот '{notebook_filter}' не найден.")
-                print("Доступные блокноты:")
+                print(f"Notebook '{notebook_filter}' not found.")
+                print("Available notebooks:")
                 all_nbs = self._api.list_notebooks()
                 for nb in all_nbs:
                     print(f"  - {nb.display_name}")
                 return
 
-        print(f"Найдено блокнотов: {len(notebooks)}")
+        print(f"Found {len(notebooks)} notebook(s)")
 
         total_pages = 0
         for nb in notebooks:
             self._api.enumerate_notebook(nb)
             count = self._count_pages(nb)
             total_pages += count
-            print(f"  [{nb.display_name}] секций: {self._count_sections(nb)}, страниц: {count}")
+            print(f"  [{nb.display_name}] sections: {self._count_sections(nb)}, pages: {count}")
 
         self._stats["total"] = total_pages
-        print(f"\nВсего страниц для экспорта: {total_pages}")
+        print(f"\nTotal pages to export: {total_pages}")
         if self._state.count > 0:
-            print(f"Ранее экспортировано: {self._state.count} (неизменённые будут пропущены)")
+            print(f"Previously exported: {self._state.count} (unchanged pages will be skipped)")
         print()
 
         # Phase 2: Export
@@ -89,14 +91,14 @@ class OneNoteExporter:
         s = self._stats
         print()
         print("=" * 50)
-        print(f"Готово!")
-        print(f"  Экспортировано: {s['exported']}")
-        print(f"  Пропущено (без изменений): {s['skipped']}")
-        print(f"  Ошибки: {s['errors']}")
-        print(f"  Всего обработано: {s['exported'] + s['skipped'] + s['errors']}/{s['total']}")
-        print(f"\nФайлы сохранены в: {self._vault_path}")
+        print("Done!")
+        print(f"  Exported: {s['exported']}")
+        print(f"  Skipped (unchanged): {s['skipped']}")
+        print(f"  Errors: {s['errors']}")
+        print(f"  Total processed: {s['exported'] + s['skipped'] + s['errors']}/{s['total']}")
+        print(f"\nFiles saved to: {self._vault_path}")
 
-    def _export_section_group(self, group: SectionGroup, parent_dir: Path):
+    def _export_section_group(self, group: SectionGroup, parent_dir: Path) -> None:
         """Recursively export a section group to a subdirectory."""
         group_dir = parent_dir / sanitize_filename(group.display_name)
         group_dir.mkdir(parents=True, exist_ok=True)
@@ -107,13 +109,16 @@ class OneNoteExporter:
         for nested_sg in group.section_groups:
             self._export_section_group(nested_sg, group_dir)
 
-    def _export_section(self, section: Section, parent_dir: Path):
+    def _export_section(self, section: Section, parent_dir: Path) -> None:
         """Export all pages in a section to a subdirectory."""
         section_dir = parent_dir / sanitize_filename(section.display_name)
         section_dir.mkdir(parents=True, exist_ok=True)
         attachments_dir = section_dir / self._attachments_folder
 
+        # Seed dedup set from existing files on disk (for crash-resume safety)
         used_md_paths: set[Path] = set()
+        if section_dir.exists():
+            used_md_paths.update(section_dir.glob("*.md"))
 
         for page in section.pages:
             processed = self._stats["exported"] + self._stats["skipped"] + self._stats["errors"]
@@ -132,14 +137,14 @@ class OneNoteExporter:
                 print(f"  {progress} {page.title}")
             except GraphAPIError as e:
                 self._stats["errors"] += 1
-                logger.error("%s ОШИБКА '%s': %s", progress, page.title, e)
-                print(f"  {progress} ОШИБКА: {page.title} — {e}")
-            except Exception as e:
+                logger.error("%s ERROR '%s': %s", progress, page.title, e)
+                print(f"  {progress} ERROR: {page.title} — {e}")
+            except (OSError, ValueError) as e:
                 self._stats["errors"] += 1
                 logger.error(
-                    "%s ОШИБКА '%s': %s", progress, page.title, e, exc_info=True
+                    "%s ERROR '%s': %s", progress, page.title, e, exc_info=True
                 )
-                print(f"  {progress} ОШИБКА: {page.title} — {e}")
+                print(f"  {progress} ERROR: {page.title} — {e}")
 
     def _export_page(
         self,
@@ -147,7 +152,7 @@ class OneNoteExporter:
         section_dir: Path,
         attachments_dir: Path,
         used_md_paths: set[Path],
-    ):
+    ) -> None:
         """Export a single page: HTML → resources → Markdown → file."""
         # 1. Get page HTML content
         html_content = self._api.get_page_content(page.id)
@@ -182,11 +187,11 @@ class OneNoteExporter:
         """Build YAML frontmatter for an exported page."""
         lines = ["---"]
         if page.created_time:
-            lines.append(f"created: {page.created_time}")
+            lines.append(f'created: "{page.created_time}"')
         if page.last_modified_time:
-            lines.append(f"modified: {page.last_modified_time}")
+            lines.append(f'modified: "{page.last_modified_time}"')
         lines.append("source: onenote")
-        lines.append(f"onenote_id: \"{page.id}\"")
+        lines.append(f'onenote_id: "{page.id}"')
         lines.append("---")
         lines.append("")
         return "\n".join(lines) + "\n"
