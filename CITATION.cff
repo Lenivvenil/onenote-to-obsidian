@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: OneNote to Obsidian Exporter
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: Kuzmin
+    given-names: Ivan
+version: "1.1.0"
+date-released: "2026-04-13"
+license: MIT
+repository-code: https://github.com/Lenivvenil/onenote-to-obsidian
+keywords:
+  - onenote
+  - obsidian
+  - markdown
+  - export
+  - microsoft-graph
+  - python
