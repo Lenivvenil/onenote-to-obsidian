@@ -1,6 +1,19 @@
 # OneNote → Obsidian Exporter
 
+[![Tests](https://github.com/Lenivvenil/onenote-to-obsidian/actions/workflows/test.yml/badge.svg)](https://github.com/Lenivvenil/onenote-to-obsidian/actions/workflows/test.yml)
+[![Lint](https://github.com/Lenivvenil/onenote-to-obsidian/actions/workflows/lint.yml/badge.svg)](https://github.com/Lenivvenil/onenote-to-obsidian/actions/workflows/lint.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Export your Microsoft OneNote notebooks to Obsidian-compatible Markdown files via Microsoft Graph API.
+
+## Why This Tool?
+
+- **Zero setup** — no Azure AD app registration needed, works out of the box
+- **Full fidelity** — images, file attachments, checkboxes, tables, embedded content
+- **Smart resume** — re-running skips unchanged pages, exports only what's new
+- **Preserves structure** — Notebook / Section / Section Group hierarchy mapped to folders
+- **Open source** — MIT licensed, community-driven, 98% test coverage
 
 ## Features
 
@@ -18,6 +31,14 @@ Export your Microsoft OneNote notebooks to Obsidian-compatible Markdown files vi
 
 ## Installation
 
+### From PyPI (recommended)
+
+```bash
+pip install onenote-to-obsidian
+```
+
+### From source
+
 ```bash
 git clone https://github.com/Lenivvenil/onenote-to-obsidian.git
 cd onenote-to-obsidian
@@ -30,16 +51,19 @@ pip install -e .
 
 ```bash
 # Export all notebooks (first run creates config automatically)
+onenote-to-obsidian
+
+# Or run as a module
 python -m onenote_to_obsidian
 
 # List your notebooks
-python -m onenote_to_obsidian --list
+onenote-to-obsidian --list
 
 # Export a specific notebook
-python -m onenote_to_obsidian --notebook "My Notebook"
+onenote-to-obsidian --notebook "My Notebook"
 
 # Export to a custom vault path
-python -m onenote_to_obsidian --vault /path/to/obsidian/vault
+onenote-to-obsidian --vault /path/to/obsidian/vault
 ```
 
 On the first run, you'll see a device code prompt:
@@ -87,8 +111,8 @@ Each `.md` file includes YAML frontmatter:
 
 ```yaml
 ---
-created: 2023-01-15T10:30:00Z
-modified: 2024-06-20T14:22:00Z
+created: "2023-01-15T10:30:00Z"
+modified: "2024-06-20T14:22:00Z"
 source: onenote
 onenote_id: "page-guid"
 ---
@@ -124,6 +148,39 @@ All configuration is stored in `~/.onenote_exporter/`:
 | `token_cache.json` | Cached OAuth2 tokens (chmod 600) |
 | `export_state.json` | Which pages have been exported |
 
+## Troubleshooting
+
+### "Invalid client_id" error
+
+Try the fallback client ID:
+
+```bash
+onenote-to-obsidian --setup
+# Enter: 1fec8e78-bce4-4aaf-ab1b-5451cc387264
+```
+
+### Pages not exporting
+
+1. Verify you're signed in: `onenote-to-obsidian --list`
+2. Check logs: `onenote-to-obsidian --verbose`
+3. Reset state: `onenote-to-obsidian --reset-state`
+
+### "Account not supported" error
+
+Your Microsoft account type may not be compatible with the default client ID. Run `--setup` and try the fallback, or register your own app in Azure AD.
+
+## Comparison with Alternatives
+
+| Feature | onenote-to-obsidian | Manual copy-paste | OneNote export (OOXML) |
+|---|---|---|---|
+| No registration needed | Yes | N/A | N/A |
+| Images & attachments | Yes | Manual | Partial |
+| Resume / incremental | Yes | No | No |
+| Checkboxes | Yes | No | No |
+| Section groups | Yes | N/A | Yes |
+| YAML frontmatter | Yes | No | No |
+| Automation-friendly | Yes | No | Partial |
+
 ## Development
 
 ```bash
@@ -135,7 +192,13 @@ pytest
 
 # Run tests with coverage
 pytest --cov=onenote_to_obsidian
+
+# Lint and format
+ruff check onenote_to_obsidian/
+ruff format onenote_to_obsidian/
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full contributor guidelines.
 
 ## License
 

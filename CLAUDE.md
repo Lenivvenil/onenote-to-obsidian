@@ -1,85 +1,101 @@
 # OneNote → Obsidian Exporter
 
-## Что это
+## What is this
 
-Python-инструмент для экспорта блокнотов OneNote в Obsidian-совместимый Markdown через Microsoft Graph API. Экспортирует текст, изображения и файловые вложения с сохранением структуры блокнот/секция/страница.
+Python CLI tool for exporting OneNote notebooks to Obsidian-compatible Markdown via Microsoft Graph API. Exports text, images, and file attachments preserving the notebook/section/page hierarchy.
 
-## Структура проекта
+## Project Structure
 
 ```
 onenote_to_obsidian/
 ├── __main__.py              # CLI entry point (python -m onenote_to_obsidian)
-├── config.py                # Конфигурация (дефолтный client_id Microsoft Office, без Azure AD)
-├── auth.py                  # OAuth2 device code flow через MSAL, кэш токенов, fallback client_id
-├── graph_client.py          # HTTP-клиент для Graph API (retry 429/5xx/401, pagination)
+├── config.py                # Configuration (default Microsoft Office client_id, no Azure AD needed)
+├── auth.py                  # OAuth2 device code flow via MSAL, token caching, fallback client_id
+├── graph_client.py          # HTTP client for Graph API (retry 429/5xx/401, pagination)
 ├── onenote_api.py           # OneNote endpoints: notebooks, sections, section groups, pages
 ├── html_converter.py        # OneNote HTML → Markdown (markdownify + BeautifulSoup)
-├── resource_downloader.py   # Скачивание картинок/вложений
-├── exporter.py              # Главный оркестратор экспорта
-├── state.py                 # Состояние экспорта (resume по lastModifiedDateTime)
+├── resource_downloader.py   # Image/attachment downloading
+├── exporter.py              # Main export orchestrator
+├── state.py                 # Export state tracking (resume by lastModifiedDateTime)
 ├── utils.py                 # sanitize_filename, deduplicate_path
+├── py.typed                 # PEP 561 typing marker
 └── requirements.txt         # msal, requests, beautifulsoup4, markdownify
+tests/
+├── conftest.py              # Shared fixtures (mock MSAL, sample dataclasses)
+├── test_auth.py             # 29 tests for auth.py
+├── test_graph_client.py     # 66 tests for graph_client.py
+├── test_onenote_api.py      # 46 tests for onenote_api.py
+├── test_resource_downloader.py
+├── test_exporter.py         # Integration tests
+├── test_config.py
+├── test_main.py             # CLI tests
+├── test_html_converter.py
+├── test_state.py
+└── test_utils.py
 ```
 
-## Как запускать
+## How to Run
 
 ```bash
-cd ~/Projects
-source onenote_to_obsidian/.venv/bin/activate
+cd ~/Projects/onenote-to-obsidian
+source .venv/bin/activate
 
-# Экспорт всех блокнотов (при первом запуске конфиг создаётся автоматически)
+# Export all notebooks (config auto-created on first run)
 python -m onenote_to_obsidian
 
-# Список блокнотов
+# List notebooks
 python -m onenote_to_obsidian --list
 
-# Экспорт конкретного блокнота
+# Export specific notebook
 python -m onenote_to_obsidian --notebook "Asaka"
 
-# Повторный полный экспорт
+# Full re-export
 python -m onenote_to_obsidian --reset-state
 
-# Настройка кастомного client_id (если дефолтный не работает)
+# Custom client_id setup (if default doesn't work)
 python -m onenote_to_obsidian --setup
 
-# Подробный лог
+# Verbose logging
 python -m onenote_to_obsidian -v
 ```
 
-Регистрация приложения в Azure AD **НЕ требуется**. По умолчанию используется
-публичный client_id Microsoft Office (`d3590ed6-52b3-4102-aeff-aad2292ab01c`).
-Если он не работает, `--setup` позволяет переключиться на другой (например,
-Microsoft Teams: `1fec8e78-bce4-4aaf-ab1b-5451cc387264`).
+No Azure AD app registration required. Default: public Microsoft Office client_id
+(`d3590ed6-52b3-4102-aeff-aad2292ab01c`). Fallback: Microsoft Teams
+(`1fec8e78-bce4-4aaf-ab1b-5451cc387264`).
 
-## Зависимости
+## Dependencies
 
-Виртуальное окружение: `.venv/` (Python 3.14). Зависимости из `requirements.txt`:
-- `msal` — OAuth2 авторизация Microsoft
-- `requests` — HTTP-клиент
-- `beautifulsoup4` — парсинг HTML
-- `markdownify` — HTML→Markdown конвертация
+Virtual env: `.venv/` (Python 3.10+). From `pyproject.toml`:
+- `msal` — Microsoft OAuth2
+- `requests` — HTTP client
+- `beautifulsoup4` — HTML parsing
+- `markdownify` — HTML→Markdown conversion
 
-Установка: `source .venv/bin/activate && pip install -r requirements.txt`
+Dev: `pytest`, `pytest-cov`, `pytest-mock`, `responses`, `ruff`
 
-## Конфигурация
+Install: `source .venv/bin/activate && pip install -e ".[dev]"`
 
-Хранится в `~/.onenote_exporter/`:
+## Configuration
+
+Stored in `~/.onenote_exporter/`:
 - `config.json` — client_id, vault_path, scopes
-- `token_cache.json` — кэш OAuth2 токенов (chmod 600)
-- `export_state.json` — какие страницы уже экспортированы
+- `token_cache.json` — OAuth2 token cache (chmod 600)
+- `export_state.json` — which pages have been exported
 
-Vault по умолчанию: `/Users/ivankuzmin/Library/Mobile Documents/iCloud~md~obsidian/Documents/NBUClaude`
+Default vault: `~/ObsidianVault`
 
-## Архитектура и ключевые решения
+## Architecture & Key Decisions
 
-- **Авторизация**: OAuth2 device code flow, authority `https://login.microsoftonline.com/consumers` (личный Microsoft-аккаунт). Дефолтный client_id: Microsoft Office (`d3590ed6-...`), fallback: Microsoft Teams (`1fec8e78-...`). MSAL SerializableTokenCache для persist-а токенов.
-- **Graph API**: Retry на 429 (Retry-After), 5xx (exponential backoff), 401 (token refresh). Автопагинация через `@odata.nextLink`.
-- **HTML→Markdown**: Кастомный подкласс `markdownify.MarkdownConverter` с переопределёнными `convert_img`, `convert_object`, `convert_p`, `convert_li`, `convert_iframe`. Сигнатуры используют `**kwargs` для совместимости с markdownify >= 1.2.
-- **Ресурсы**: Картинки и вложения скачиваются в `attachments/` внутри секции, ссылаются из Markdown как `![alt](attachments/file.png)`.
-- **Resume**: Состояние экспорта по page_id + lastModifiedDateTime. Неизменённые страницы пропускаются.
-- **Section groups**: Рекурсивный обход вложенных групп секций.
+- **Auth**: OAuth2 device code flow, authority `https://login.microsoftonline.com/common` (personal Microsoft account). MSAL SerializableTokenCache for persistence. `force_refresh=True` on 401 retry.
+- **Graph API**: Retry on 429 (Retry-After), 5xx (exponential backoff), 401 (force token refresh). Auto-pagination via `@odata.nextLink`.
+- **HTML→Markdown**: Custom `markdownify.MarkdownConverter` subclass with overridden `convert_img`, `convert_object`, `convert_p`, `convert_li`, `convert_iframe`. Uses `**kwargs` for markdownify >= 1.2 compatibility.
+- **Resources**: Images and attachments downloaded to `attachments/` within section folder.
+- **Resume**: Export state by page_id + lastModifiedDateTime. Unchanged pages skipped.
+- **Deduplication**: File dedup seeded from disk (survives crash + restart).
+- **Section groups**: Recursive traversal of nested section groups.
+- **YAML frontmatter**: All values quoted for safety.
 
-## Результат экспорта
+## Export Output
 
 ```
 Vault/
@@ -96,31 +112,34 @@ Vault/
     └── ...
 ```
 
-Каждый `.md` содержит YAML frontmatter:
+Each `.md` contains YAML frontmatter:
 ```yaml
 ---
-created: 2023-01-15T10:30:00Z
-modified: 2024-06-20T14:22:00Z
+created: "2023-01-15T10:30:00Z"
+modified: "2024-06-20T14:22:00Z"
 source: onenote
 onenote_id: "page-guid"
 ---
 ```
 
-## Что конвертируется из OneNote HTML
+## What Gets Converted from OneNote HTML
 
 | OneNote HTML | Markdown |
 |---|---|
 | `<img src="graph.../resources/{id}/$value">` | `![alt](attachments/id.png)` |
 | `<object data-attachment="file.pdf">` | `[file.pdf](attachments/file.pdf)` |
-| `<p data-tag="to-do">` | `- [ ] текст` |
-| `<p data-tag="to-do:completed">` | `- [x] текст` |
+| `<p data-tag="to-do">` | `- [ ] text` |
+| `<p data-tag="to-do:completed">` | `- [x] text` |
 | `<iframe data-original-src="...">` | `[Embedded content](url)` |
-| `position:absolute` CSS | Удаляется |
-| `<b>`, `<i>`, `<h1>`-`<h6>`, `<table>`, `<a>` | Стандартный Markdown |
+| `position:absolute` CSS | Removed |
+| `<b>`, `<i>`, `<h1>`-`<h6>`, `<table>`, `<a>` | Standard Markdown |
 
-## Рекомендации по доработке
+## Development Guidelines
 
-- При добавлении новых конвертеров тегов — переопределяй метод `convert_<tagname>` в `OneNoteMarkdownConverter` с сигнатурой `(self, el, text, **kwargs)`.
-- Тесты конвертера можно запускать передачей sample HTML через `preprocess_onenote_html()` → `convert_page_html()`.
-- При изменении Graph API endpoints — править `onenote_api.py`, не `graph_client.py`.
-- Не трогать `token_cache.json` вручную — им управляет MSAL.
+- When adding new tag converters: override `convert_<tagname>` in `OneNoteMarkdownConverter` with signature `(self, el, text, **kwargs)`.
+- Test converter via `preprocess_onenote_html()` → `convert_page_html()`.
+- Graph API endpoint changes go in `onenote_api.py`, not `graph_client.py`.
+- Don't edit `token_cache.json` manually — managed by MSAL.
+- Run `ruff check` and `ruff format` before committing.
+- All changes must pass: `pytest --cov=onenote_to_obsidian` (target: >80%).
+- All UI strings must be in English.
