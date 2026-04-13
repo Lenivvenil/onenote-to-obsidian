@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import argparse
 import logging
-
-logger = logging.getLogger(__name__)
-
 import sys
 
 from .config import DEFAULT_CONFIG_DIR, DEFAULT_VAULT_PATH, Config
 from .exporter import OneNoteExporter
 from .graph_client import GraphAPIError
 from .onenote_api import SectionGroup
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
