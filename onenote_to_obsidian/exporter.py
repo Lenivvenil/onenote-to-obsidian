@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from .auth import AuthManager
@@ -192,30 +193,24 @@ class OneNoteExporter:
         return "\n".join(lines) + "\n"
 
     @staticmethod
-    def _count_pages(notebook: Notebook) -> int:
-        """Count total pages in a notebook (including section groups)."""
-        count = sum(len(s.pages) for s in notebook.sections)
-        for sg in notebook.section_groups:
-            count += OneNoteExporter._count_pages_in_group(sg)
+    def _count_recursive(
+        obj: Notebook | SectionGroup,
+        counter: Callable[[list[Section]], int],
+    ) -> int:
+        """Recursively count items across sections and nested section groups."""
+        count = counter(obj.sections)
+        for sg in obj.section_groups:
+            count += OneNoteExporter._count_recursive(sg, counter)
         return count
 
     @staticmethod
-    def _count_pages_in_group(group: SectionGroup) -> int:
-        count = sum(len(s.pages) for s in group.sections)
-        for sg in group.section_groups:
-            count += OneNoteExporter._count_pages_in_group(sg)
-        return count
+    def _count_pages(notebook: Notebook) -> int:
+        """Count total pages in a notebook (including section groups)."""
+        return OneNoteExporter._count_recursive(
+            notebook, lambda secs: sum(len(s.pages) for s in secs)
+        )
 
     @staticmethod
     def _count_sections(notebook: Notebook) -> int:
-        count = len(notebook.sections)
-        for sg in notebook.section_groups:
-            count += OneNoteExporter._count_sections_in_group(sg)
-        return count
-
-    @staticmethod
-    def _count_sections_in_group(group: SectionGroup) -> int:
-        count = len(group.sections)
-        for sg in group.section_groups:
-            count += OneNoteExporter._count_sections_in_group(sg)
-        return count
+        """Count total sections in a notebook (including section groups)."""
+        return OneNoteExporter._count_recursive(notebook, len)

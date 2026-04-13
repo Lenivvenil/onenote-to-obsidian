@@ -62,6 +62,7 @@ class Config:
         self.config_dir_path.mkdir(parents=True, exist_ok=True)
         data = asdict(self)
         self.config_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        self.config_file.chmod(0o600)
 
     @classmethod
     def load(cls, config_dir: Path = DEFAULT_CONFIG_DIR) -> "Config | None":

@@ -1,12 +1,13 @@
 """Tests for CLI entry point (__main__.py)."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from onenote_to_obsidian.__main__ import main
-from onenote_to_obsidian.config import Config, DEFAULT_VAULT_PATH
-from onenote_to_obsidian.onenote_api import Notebook, Section, Page
+from onenote_to_obsidian.config import Config
+from onenote_to_obsidian.graph_client import GraphAPIError
+from onenote_to_obsidian.onenote_api import Notebook, Page, Section
 
 
 class TestCLIHelp:
@@ -183,3 +184,76 @@ class TestCLIVerbose:
             main()
 
         assert root.level == logging.WARNING
+
+
+class TestCLIErrorHandling:
+    @patch("onenote_to_obsidian.__main__.OneNoteExporter")
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_keyboard_interrupt_exits_130(self, mock_setup, mock_exporter_cls, capsys):
+        mock_setup.return_value = Config()
+        mock_exporter_cls.return_value.export_all.side_effect = KeyboardInterrupt
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch("sys.argv", ["onenote_to_obsidian"]):
+                main()
+        assert exc_info.value.code == 130
+        assert "cancelled" in capsys.readouterr().out.lower()
+
+    @patch("onenote_to_obsidian.__main__.OneNoteExporter")
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_graph_api_error_exits_1(self, mock_setup, mock_exporter_cls, capsys):
+        mock_setup.return_value = Config()
+        mock_exporter_cls.return_value.export_all.side_effect = GraphAPIError(
+            403, "Access denied"
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch("sys.argv", ["onenote_to_obsidian"]):
+                main()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr().out
+        assert "API error" in captured
+        assert "--verbose" in captured
+
+    @patch("onenote_to_obsidian.__main__.OneNoteExporter")
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_os_error_exits_1(self, mock_setup, mock_exporter_cls, capsys):
+        mock_setup.return_value = Config()
+        mock_exporter_cls.return_value.export_all.side_effect = PermissionError(
+            "Permission denied: /vault"
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch("sys.argv", ["onenote_to_obsidian"]):
+                main()
+        assert exc_info.value.code == 1
+        assert "File system error" in capsys.readouterr().out
+
+    @patch("onenote_to_obsidian.__main__.OneNoteExporter")
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_unexpected_error_exits_1(self, mock_setup, mock_exporter_cls, capsys):
+        mock_setup.return_value = Config()
+        mock_exporter_cls.return_value.export_all.side_effect = RuntimeError("something broke")
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch("sys.argv", ["onenote_to_obsidian"]):
+                main()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr().out
+        assert "Unexpected error" in captured
+        assert "--verbose" in captured
+
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_list_mode_api_error(self, mock_setup, capsys):
+        mock_setup.return_value = Config()
+        mock_api = MagicMock()
+        mock_api.list_notebooks.side_effect = GraphAPIError(401, "Unauthorized")
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch("sys.argv", ["onenote_to_obsidian", "--list"]), \
+                 patch("onenote_to_obsidian.auth.AuthManager"), \
+                 patch("onenote_to_obsidian.graph_client.GraphClient"), \
+                 patch("onenote_to_obsidian.onenote_api.OneNoteAPI", return_value=mock_api):
+                main()
+        assert exc_info.value.code == 1
+        assert "API error" in capsys.readouterr().out

@@ -84,7 +84,7 @@ class GraphClient:
             error_body = ""
             try:
                 error_body = resp.json().get("error", {}).get("message", resp.text[:500])
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 error_body = resp.text[:500]
             raise GraphAPIError(resp.status_code, error_body)
 

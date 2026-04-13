@@ -4,15 +4,12 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from onenote_to_obsidian.config import (
-    Config,
-    DEFAULT_CLIENT_ID,
-    DEFAULT_VAULT_PATH,
     DEFAULT_AUTHORITY,
+    DEFAULT_CLIENT_ID,
     DEFAULT_SCOPES,
-    FALLBACK_CLIENT_ID,
+    DEFAULT_VAULT_PATH,
+    Config,
 )
 
 
@@ -80,6 +77,15 @@ class TestConfigSave:
         assert data["client_id"] == "test-id"
         assert data["vault_path"] == "/test/vault"
         assert "scopes" in data
+
+    def test_save_sets_file_permissions(self, tmp_path):
+        config_dir = tmp_path / "config"
+        config = Config(config_dir=str(config_dir))
+        config.save()
+
+        config_file = config_dir / "config.json"
+        mode = config_file.stat().st_mode & 0o777
+        assert mode == 0o600
 
     def test_save_overwrites_existing(self, tmp_path):
         config_dir = tmp_path / "config"

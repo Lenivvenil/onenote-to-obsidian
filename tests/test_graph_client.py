@@ -961,6 +961,21 @@ class TestErrorHandling:
         assert len(error_str) < 700  # Some overhead for the error wrapper
 
     @responses.activate
+    def test_invalid_json_falls_back_to_text(self, client):
+        """Test that invalid JSON in error response falls back to resp.text."""
+        responses.add(
+            responses.GET,
+            f"{BASE_URL}/api/test",
+            body="not valid json {{{",
+            status=400,
+            content_type="application/json",
+        )
+
+        with pytest.raises(GraphAPIError) as exc_info:
+            client.get_json("/api/test")
+        assert "not valid json" in str(exc_info.value)
+
+    @responses.activate
     def test_exception_stores_status_code(self, client):
         """Test that GraphAPIError stores status_code."""
         responses.add(

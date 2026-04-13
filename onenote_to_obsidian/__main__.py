@@ -5,8 +5,13 @@ from __future__ import annotations
 import argparse
 import logging
 
+logger = logging.getLogger(__name__)
+
+import sys
+
 from .config import DEFAULT_CONFIG_DIR, DEFAULT_VAULT_PATH, Config
 from .exporter import OneNoteExporter
+from .graph_client import GraphAPIError
 from .onenote_api import SectionGroup
 
 
@@ -89,33 +94,51 @@ Microsoft Office client_id by default.
         state.clear()
         print("Export state cleared. All pages will be re-exported.\n")
 
-    # List notebooks mode
-    if args.list:
-        from .auth import AuthManager
-        from .graph_client import GraphClient
-        from .onenote_api import OneNoteAPI
+    try:
+        # List notebooks mode
+        if args.list:
+            from .auth import AuthManager
+            from .graph_client import GraphClient
+            from .onenote_api import OneNoteAPI
 
-        auth = AuthManager(config)
-        client = GraphClient(auth)
-        api = OneNoteAPI(client)
+            auth = AuthManager(config)
+            client = GraphClient(auth)
+            api = OneNoteAPI(client)
 
-        print("OneNote Notebooks:\n")
-        notebooks = api.list_notebooks()
-        if not notebooks:
-            print("  (no notebooks found)")
+            print("OneNote Notebooks:\n")
+            notebooks = api.list_notebooks()
+            if not notebooks:
+                print("  (no notebooks found)")
+                return
+            for nb in notebooks:
+                api.enumerate_notebook(nb)
+                print(f"  {nb.display_name}")
+                for section in nb.sections:
+                    print(f"    └── {section.display_name} ({len(section.pages)} pages)")
+                for sg in nb.section_groups:
+                    _print_section_group(sg, indent=4)
             return
-        for nb in notebooks:
-            api.enumerate_notebook(nb)
-            print(f"  {nb.display_name}")
-            for section in nb.sections:
-                print(f"    └── {section.display_name} ({len(section.pages)} pages)")
-            for sg in nb.section_groups:
-                _print_section_group(sg, indent=4)
-        return
 
-    # Run export
-    exporter = OneNoteExporter(config)
-    exporter.export_all(notebook_filter=args.notebook)
+        # Run export
+        exporter = OneNoteExporter(config)
+        exporter.export_all(notebook_filter=args.notebook)
+    except KeyboardInterrupt:
+        print("\nExport cancelled.")
+        sys.exit(130)
+    except GraphAPIError as e:
+        logger.debug("GraphAPIError: %s", e, exc_info=True)
+        print(f"\nAPI error: {e}")
+        print("Run with --verbose for details.")
+        sys.exit(1)
+    except OSError as e:
+        logger.debug("OSError: %s", e, exc_info=True)
+        print(f"\nFile system error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.debug("Unexpected error: %s", e, exc_info=True)
+        print(f"\nUnexpected error: {e}")
+        print("Run with --verbose for details.")
+        sys.exit(1)
 
 
 def _print_section_group(group: SectionGroup, indent: int = 4) -> None:
