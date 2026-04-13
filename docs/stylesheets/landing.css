@@ -471,6 +471,131 @@ body {
   }
 }
 
+/* ============================================
+   Inner pages — docs typography & components
+   ============================================ */
+
+.md-typeset {
+  font-family: var(--landing-font);
+  color: var(--landing-text);
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--landing-text);
+}
+
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--landing-border);
+  color: var(--landing-text);
+}
+
+.md-typeset h3 {
+  font-weight: 600;
+  color: var(--landing-text);
+}
+
+.md-typeset a {
+  color: var(--landing-accent);
+}
+
+.md-typeset a:hover {
+  color: var(--landing-accent-hover);
+}
+
+.md-typeset code:not(pre code) {
+  background: var(--landing-code-bg);
+  border: 1px solid var(--landing-border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: var(--landing-font-mono);
+  font-size: 0.82em;
+  color: var(--landing-accent);
+}
+
+.md-typeset pre {
+  border-radius: 10px;
+  border: 1px solid var(--landing-border);
+}
+
+.md-typeset pre > code {
+  font-family: var(--landing-font-mono);
+  font-size: 0.85em;
+}
+
+.md-typeset table:not([class]) {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+.md-typeset table:not([class]) th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--landing-text-muted);
+  border-bottom: 2px solid var(--landing-border);
+}
+
+.md-typeset table:not([class]) td {
+  border-bottom: 1px solid var(--landing-border);
+  padding: 10px 14px;
+}
+
+.md-typeset table:not([class]) tr:hover td {
+  background: var(--landing-code-bg);
+}
+
+/* Admonitions — Obsidian accent */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 10px;
+  border-left: 4px solid var(--landing-accent);
+  font-size: 0.9rem;
+}
+
+/* Header bar */
+.md-header {
+  background: var(--landing-bg);
+  border-bottom: 1px solid var(--landing-border);
+  box-shadow: none;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  background: #1a1a2e;
+  border-bottom-color: #2a2a3d;
+}
+
+.md-header__title {
+  font-weight: 600;
+}
+
+/* Navigation sidebar */
+.md-nav__link {
+  font-size: 0.88rem;
+}
+
+.md-nav__link--active {
+  color: var(--landing-accent) !important;
+  font-weight: 600;
+}
+
+/* Footer */
+.md-footer {
+  background: var(--landing-bg-alt);
+  border-top: 1px solid var(--landing-border);
+}
+
+[data-md-color-scheme="slate"] .md-footer {
+  background: #1a1a2e;
+}
+
 @media (max-width: 480px) {
   .landing-hero__title {
     font-size: 1.7rem;
