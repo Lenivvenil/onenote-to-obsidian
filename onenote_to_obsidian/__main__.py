@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 
-from .config import Config, DEFAULT_VAULT_PATH, DEFAULT_CONFIG_DIR
+from .config import DEFAULT_CONFIG_DIR, DEFAULT_VAULT_PATH, Config
 from .exporter import OneNoteExporter
 from .onenote_api import SectionGroup
 
@@ -55,7 +54,8 @@ Microsoft Office client_id by default.
         help="List available notebooks and exit",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Verbose output (DEBUG-level logging)",
     )

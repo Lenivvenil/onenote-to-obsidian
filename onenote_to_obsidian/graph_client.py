@@ -49,9 +49,7 @@ class GraphClient:
         last_error = None
         for attempt in range(MAX_RETRIES + 1):
             try:
-                resp = self._session.request(
-                    method, url, headers=headers, timeout=60, **kwargs
-                )
+                resp = self._session.request(method, url, headers=headers, timeout=60, **kwargs)
             except requests.RequestException as e:
                 last_error = e
                 if attempt < MAX_RETRIES:
@@ -78,9 +76,7 @@ class GraphClient:
 
             if resp.status_code >= 500:
                 wait = BACKOFF_FACTOR ** (attempt + 1)
-                logger.warning(
-                    "Server error %d, retrying in %ds...", resp.status_code, wait
-                )
+                logger.warning("Server error %d, retrying in %ds...", resp.status_code, wait)
                 time.sleep(wait)
                 continue
 

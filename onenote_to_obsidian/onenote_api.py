@@ -63,49 +63,27 @@ class OneNoteAPI:
 
     def list_sections(self, notebook_id: str) -> list[Section]:
         """List sections directly under a notebook."""
-        data = self._client.get_json_all(
-            f"/me/onenote/notebooks/{notebook_id}/sections"
-        )
-        return [
-            Section(id=s["id"], display_name=s["displayName"])
-            for s in data
-        ]
+        data = self._client.get_json_all(f"/me/onenote/notebooks/{notebook_id}/sections")
+        return [Section(id=s["id"], display_name=s["displayName"]) for s in data]
 
     def list_section_groups(self, notebook_id: str) -> list[SectionGroup]:
         """List section groups under a notebook."""
-        data = self._client.get_json_all(
-            f"/me/onenote/notebooks/{notebook_id}/sectionGroups"
-        )
-        return [
-            SectionGroup(id=sg["id"], display_name=sg["displayName"])
-            for sg in data
-        ]
+        data = self._client.get_json_all(f"/me/onenote/notebooks/{notebook_id}/sectionGroups")
+        return [SectionGroup(id=sg["id"], display_name=sg["displayName"]) for sg in data]
 
     def list_sections_in_group(self, group_id: str) -> list[Section]:
         """List sections within a section group."""
-        data = self._client.get_json_all(
-            f"/me/onenote/sectionGroups/{group_id}/sections"
-        )
-        return [
-            Section(id=s["id"], display_name=s["displayName"])
-            for s in data
-        ]
+        data = self._client.get_json_all(f"/me/onenote/sectionGroups/{group_id}/sections")
+        return [Section(id=s["id"], display_name=s["displayName"]) for s in data]
 
     def list_section_groups_in_group(self, group_id: str) -> list[SectionGroup]:
         """List nested section groups within a section group."""
-        data = self._client.get_json_all(
-            f"/me/onenote/sectionGroups/{group_id}/sectionGroups"
-        )
-        return [
-            SectionGroup(id=sg["id"], display_name=sg["displayName"])
-            for sg in data
-        ]
+        data = self._client.get_json_all(f"/me/onenote/sectionGroups/{group_id}/sectionGroups")
+        return [SectionGroup(id=sg["id"], display_name=sg["displayName"]) for sg in data]
 
     def list_pages(self, section_id: str) -> list[Page]:
         """List all pages in a section."""
-        data = self._client.get_json_all(
-            f"/me/onenote/sections/{section_id}/pages"
-        )
+        data = self._client.get_json_all(f"/me/onenote/sections/{section_id}/pages")
         pages = []
         for i, p in enumerate(data):
             pages.append(
@@ -136,9 +114,7 @@ class OneNoteAPI:
         notebook.sections = self.list_sections(notebook.id)
         for section in notebook.sections:
             section.pages = self.list_pages(section.id)
-            logger.info(
-                "  Section '%s': %d pages", section.display_name, len(section.pages)
-            )
+            logger.info("  Section '%s': %d pages", section.display_name, len(section.pages))
 
         notebook.section_groups = self.list_section_groups(notebook.id)
         for sg in notebook.section_groups:
@@ -153,9 +129,7 @@ class OneNoteAPI:
         group.sections = self.list_sections_in_group(group.id)
         for section in group.sections:
             section.pages = self.list_pages(section.id)
-            logger.info(
-                "    Section '%s': %d pages", section.display_name, len(section.pages)
-            )
+            logger.info("    Section '%s': %d pages", section.display_name, len(section.pages))
 
         group.section_groups = self.list_section_groups_in_group(group.id)
         for nested_sg in group.section_groups:

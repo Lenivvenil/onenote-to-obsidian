@@ -43,9 +43,7 @@ class ExportState:
 
     def _save(self) -> None:
         self._state_path.parent.mkdir(parents=True, exist_ok=True)
-        self._state_path.write_text(
-            json.dumps({"exported_pages": self._exported_pages}, indent=2)
-        )
+        self._state_path.write_text(json.dumps({"exported_pages": self._exported_pages}, indent=2))
 
     def clear(self) -> None:
         """Clear all export state (forces full re-export)."""

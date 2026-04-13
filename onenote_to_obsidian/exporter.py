@@ -5,14 +5,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from .config import Config
 from .auth import AuthManager
-from .graph_client import GraphClient, GraphAPIError
-from .onenote_api import OneNoteAPI, Notebook, Section, SectionGroup, Page
-from .html_converter import preprocess_onenote_html, convert_page_html
+from .config import Config
+from .graph_client import GraphAPIError, GraphClient
+from .html_converter import convert_page_html, preprocess_onenote_html
+from .onenote_api import Notebook, OneNoteAPI, Page, Section, SectionGroup
 from .resource_downloader import ResourceDownloader
 from .state import ExportState
-from .utils import sanitize_filename, deduplicate_path
+from .utils import deduplicate_path, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,7 @@ class OneNoteExporter:
 
         if notebook_filter:
             notebooks = [
-                nb for nb in notebooks
-                if nb.display_name.lower() == notebook_filter.lower()
+                nb for nb in notebooks if nb.display_name.lower() == notebook_filter.lower()
             ]
             if not notebooks:
                 print(f"Notebook '{notebook_filter}' not found.")
@@ -141,9 +140,7 @@ class OneNoteExporter:
                 print(f"  {progress} ERROR: {page.title} — {e}")
             except (OSError, ValueError) as e:
                 self._stats["errors"] += 1
-                logger.error(
-                    "%s ERROR '%s': %s", progress, page.title, e, exc_info=True
-                )
+                logger.error("%s ERROR '%s': %s", progress, page.title, e, exc_info=True)
                 print(f"  {progress} ERROR: {page.title} — {e}")
 
     def _export_page(
@@ -161,9 +158,7 @@ class OneNoteExporter:
         cleaned_html, resource_urls = preprocess_onenote_html(html_content)
 
         # 3. Download resources (images, attachments)
-        resource_map = self._downloader.download_resources(
-            resource_urls, attachments_dir
-        )
+        resource_map = self._downloader.download_resources(resource_urls, attachments_dir)
 
         # 4. Convert HTML to Markdown
         markdown = convert_page_html(

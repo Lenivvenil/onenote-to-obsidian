@@ -3,17 +3,17 @@
 import json
 import logging
 import sys
-from pathlib import Path
 
 import msal
 
-from .config import Config, FALLBACK_CLIENT_ID
+from .config import FALLBACK_CLIENT_ID, Config
 
 logger = logging.getLogger(__name__)
 
 
 class AuthError(Exception):
     """Raised when authentication fails."""
+
     pass
 
 
@@ -42,7 +42,8 @@ class AuthManager:
         accounts = self._app.get_accounts()
         if accounts:
             result = self._app.acquire_token_silent(
-                self._scopes, account=accounts[0],
+                self._scopes,
+                account=accounts[0],
                 force_refresh=force_refresh,
             )
             if result and "access_token" in result:
@@ -63,7 +64,6 @@ class AuthManager:
         flow = self._app.initiate_device_flow(scopes=self._scopes)
         if "user_code" not in flow:
             error_desc = flow.get("error_description", "Unknown error")
-            error_code = flow.get("error", "")
 
             # Check if this is a client_id/scope issue
             if "AADSTS" in error_desc or "invalid" in error_desc.lower():
@@ -86,7 +86,6 @@ class AuthManager:
 
         if "access_token" not in result:
             error = result.get("error_description", result.get("error", "Unknown error"))
-            error_code = result.get("error", "")
 
             # Specific error handling
             if "AADSTS50020" in error or "does not exist in tenant" in error:

@@ -1,8 +1,7 @@
 """Configuration management and first-run setup wizard."""
 
 import json
-import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 DEFAULT_VAULT_PATH = str(Path.home() / "ObsidianVault")

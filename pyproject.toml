@@ -47,10 +47,15 @@ onenote-to-obsidian = "onenote_to_obsidian.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/Lenivvenil/onenote-to-obsidian"
+Repository = "https://github.com/Lenivvenil/onenote-to-obsidian.git"
 Issues = "https://github.com/Lenivvenil/onenote-to-obsidian/issues"
+Changelog = "https://github.com/Lenivvenil/onenote-to-obsidian/releases"
 
 [tool.setuptools.packages.find]
 include = ["onenote_to_obsidian*"]
+
+[tool.setuptools.package-data]
+onenote_to_obsidian = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,3 +64,6 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]

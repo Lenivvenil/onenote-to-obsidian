@@ -50,9 +50,7 @@ def preprocess_onenote_html(html: str) -> tuple[str, dict[str, tuple[str, str]]]
             url = img.get(attr, "")
             if url and "onenote/resources" in url:
                 src_type = (
-                    img.get("data-fullres-src-type")
-                    or img.get("data-src-type")
-                    or "image/png"
+                    img.get("data-fullres-src-type") or img.get("data-src-type") or "image/png"
                 )
                 ext = _ext_from_media_type(src_type)
                 resource_id = extract_resource_id(url)

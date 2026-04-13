@@ -51,9 +51,7 @@ class ResourceDownloader:
                 data = self._api.get_resource(url)
                 local_path.write_bytes(data)
                 resource_map[url] = local_path.name
-                logger.debug(
-                    "Downloaded resource: %s (%d bytes)", local_path.name, len(data)
-                )
+                logger.debug("Downloaded resource: %s (%d bytes)", local_path.name, len(data))
             except Exception as e:  # noqa: BLE001 — intentionally broad to not break export
                 logger.warning("Failed to download resource %s: %s", url, e)
                 # Still map to expected filename so Markdown reference isn't broken
