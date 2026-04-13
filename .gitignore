@@ -22,6 +22,11 @@ build/
 .DS_Store
 Thumbs.db
 
+# Test artifacts
+.coverage
+coverage.json
+coverage.xml
+
 # MkDocs
 site/
 
