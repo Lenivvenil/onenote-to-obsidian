@@ -1,10 +1,62 @@
-# OneNote → Obsidian Exporter
+# Project conventions — onenote-to-obsidian
 
-## What is this
+Наследует соглашения `claude-mini`: pipeline `/plan → /adr? → /implement → /review → /codex-review`, read-only critic agents, governance hook на commits, Definition of Done из `docs/principles.md`.
 
-Python CLI tool for exporting OneNote notebooks to Obsidian-compatible Markdown via Microsoft Graph API. Exports text, images, and file attachments preserving the notebook/section/page hierarchy.
+## Source of truth
 
-## Project Structure
+- **Backlog, milestones, sprints:** GitHub Issues + Projects v2 этого репо
+- **Architecture decisions:** `docs/decisions/` (MADR 4.0). Новые — через `/adr`
+- **Domain model:** `docs/domain/`
+- **Principles:** `docs/principles.md` (ссылается на claude-mini master)
+- **Runbooks:** `docs/runbooks/`
+
+## Hard rules
+
+1. **ADR-PR** обязателен для архитектурно-значимых решений
+2. **Issue-first** для задач длиннее одной сессии
+3. **Cross-ref в PR:** `Closes #NNN` + `Implements docs/decisions/NNNN-*.md` если был ADR
+4. **Conventional Commits.** `pre-commit-governance.sh` hook проверяет
+5. **DoD** блокирует merge
+6. **Advisor policy:** `advisor()` × 2 на нетривиальной задаче
+
+## Orchestration
+
+Главный цикл: `claude --model sonnet` с `/advisor` (Opus 4.7).
+
+Канонический pipeline:
+```
+/task-to-issue → /plan <N> → /adr (если нужно) → /implement
+  → /review → /codex-review → git commit → gh pr create
+```
+
+Мастер-оркестратор: `/feature <issue>`.
+
+## Agents (read-only critics)
+
+| Agent | Когда |
+|---|---|
+| `adr-reviewer` | После черновика ADR |
+| `domain-reviewer` | После правки domain docs |
+| `domain-researcher` | Greenfield BC |
+| `solutions-architect` | Значимый технический выбор |
+| `backlog-groomer` | Раз в неделю |
+| `security-reviewer` | Перед merge в main |
+
+## Project-specific conventions
+
+Python CLI tool для экспорта OneNote → Obsidian Markdown через Microsoft Graph API.
+Stack: Python 3.10+, MSAL, requests, BeautifulSoup4, markdownify. Dev: pytest, ruff.
+Все решения о стеке зафиксированы в `docs/decisions/0001-baseline-state-at-onboarding.md`.
+
+- Lint/format перед коммитом: `ruff check onenote_to_obsidian/` + `ruff format onenote_to_obsidian/`
+- Тесты: `pytest --cov=onenote_to_obsidian` (target ≥ 80%)
+- CHANGELOG.md обновляется при любом user-facing изменении
+- Graph API endpoints → только `onenote_api.py`, не `graph_client.py`
+- Новые HTML-конвертеры → `convert_<tagname>(self, el, text, **kwargs)` в `OneNoteMarkdownConverter`
+- `token_cache.json` управляется MSAL, не редактировать вручную
+- All UI strings must be in English
+
+### Project Structure
 
 ```
 onenote_to_obsidian/
@@ -18,8 +70,7 @@ onenote_to_obsidian/
 ├── exporter.py              # Main export orchestrator
 ├── state.py                 # Export state tracking (resume by lastModifiedDateTime)
 ├── utils.py                 # sanitize_filename, deduplicate_path
-├── py.typed                 # PEP 561 typing marker
-└── requirements.txt         # msal, requests, beautifulsoup4, markdownify
+└── py.typed                 # PEP 561 typing marker
 tests/
 ├── conftest.py              # Shared fixtures (mock MSAL, sample dataclasses)
 ├── test_auth.py             # 29 tests for auth.py
@@ -34,7 +85,7 @@ tests/
 └── test_utils.py
 ```
 
-## How to Run
+### How to Run
 
 ```bash
 cd ~/Projects/onenote-to-obsidian
@@ -63,7 +114,7 @@ No Azure AD app registration required. Default: public Microsoft Office client_i
 (`d3590ed6-52b3-4102-aeff-aad2292ab01c`). Fallback: Microsoft Teams
 (`1fec8e78-bce4-4aaf-ab1b-5451cc387264`).
 
-## Dependencies
+### Dependencies
 
 Virtual env: `.venv/` (Python 3.10+). From `pyproject.toml`:
 - `msal` — Microsoft OAuth2
@@ -75,7 +126,7 @@ Dev: `pytest`, `pytest-cov`, `pytest-mock`, `responses`, `ruff`
 
 Install: `source .venv/bin/activate && pip install -e ".[dev]"`
 
-## Configuration
+### Configuration
 
 Stored in `~/.onenote_exporter/`:
 - `config.json` — client_id, vault_path, scopes
@@ -84,18 +135,18 @@ Stored in `~/.onenote_exporter/`:
 
 Default vault: `~/ObsidianVault`
 
-## Architecture & Key Decisions
+### Architecture Summary
 
-- **Auth**: OAuth2 device code flow, authority `https://login.microsoftonline.com/common` (personal Microsoft account). MSAL SerializableTokenCache for persistence. `force_refresh=True` on 401 retry.
+- **Auth**: OAuth2 device code flow, authority `https://login.microsoftonline.com/common`. MSAL SerializableTokenCache. `force_refresh=True` on 401 retry.
 - **Graph API**: Retry on 429 (Retry-After), 5xx (exponential backoff), 401 (force token refresh). Auto-pagination via `@odata.nextLink`.
-- **HTML→Markdown**: Custom `markdownify.MarkdownConverter` subclass with overridden `convert_img`, `convert_object`, `convert_p`, `convert_li`, `convert_iframe`. Uses `**kwargs` for markdownify >= 1.2 compatibility.
+- **HTML→Markdown**: Custom `markdownify.MarkdownConverter` subclass with overridden `convert_img`, `convert_object`, `convert_p`, `convert_li`, `convert_iframe`.
 - **Resources**: Images and attachments downloaded to `attachments/` within section folder.
 - **Resume**: Export state by page_id + lastModifiedDateTime. Unchanged pages skipped.
 - **Deduplication**: File dedup seeded from disk (survives crash + restart).
 - **Section groups**: Recursive traversal of nested section groups.
 - **YAML frontmatter**: All values quoted for safety.
 
-## Export Output
+### Export Output
 
 ```
 Vault/
@@ -122,7 +173,7 @@ onenote_id: "page-guid"
 ---
 ```
 
-## What Gets Converted from OneNote HTML
+### What Gets Converted from OneNote HTML
 
 | OneNote HTML | Markdown |
 |---|---|
@@ -133,13 +184,3 @@ onenote_id: "page-guid"
 | `<iframe data-original-src="...">` | `[Embedded content](url)` |
 | `position:absolute` CSS | Removed |
 | `<b>`, `<i>`, `<h1>`-`<h6>`, `<table>`, `<a>` | Standard Markdown |
-
-## Development Guidelines
-
-- When adding new tag converters: override `convert_<tagname>` in `OneNoteMarkdownConverter` with signature `(self, el, text, **kwargs)`.
-- Test converter via `preprocess_onenote_html()` → `convert_page_html()`.
-- Graph API endpoint changes go in `onenote_api.py`, not `graph_client.py`.
-- Don't edit `token_cache.json` manually — managed by MSAL.
-- Run `ruff check` and `ruff format` before committing.
-- All changes must pass: `pytest --cov=onenote_to_obsidian` (target: >80%).
-- All UI strings must be in English.
