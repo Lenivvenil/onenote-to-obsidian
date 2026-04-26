@@ -55,6 +55,7 @@
 - `ExportSpecificNotebook`: User → Exporter exports a single notebook by name; mutates `ExportState`
 - `ListNotebooks`: User → Exporter enumerates and displays notebooks without writing any files
 - `ClearExportState`: User → `ExportState` cleared; emits `ExportStateCleared`
+- `RetryFailedResources`: User → re-attempts download of all URLs in `FailedResourceState`; does not re-export pages or re-fetch HTML
 - `ConfigureClientId`: User → `Config` created or updated via interactive wizard
 
 > **Resolved 2026-04-26:** `ExportSection` (filter by section name) — possible future feature, not in current scope.
@@ -64,6 +65,7 @@
 - `Notebook` (root): enforces that sections and section groups are fully enumerated before any page is exported. Populated by `ExportAllNotebooks` / `ExportSpecificNotebook` / `ListNotebooks`; emits `NotebooksListed`, `NotebookEnumerated`.
 - `Page` (root of content unit): identity is `page_id` (stable); `lastModifiedDateTime` is a version attribute — a modified Page is the same Page at a new version, not a new entity. Owns its HTML content and embedded resources. Graph API is the system of record; this BC treats Page as read-only from Microsoft. Drives `PageContentRetrieved`, `ResourcesExtracted`, `ResourceDownloaded`, `ResourceDownloadFailed`, `PageConverted`, `MarkdownWritten`, `PageExportErrored`.
 - `ExportState`: enforces the resume invariant — a Page whose version matches the recorded version must not be re-fetched or re-written. Determines `PageSkipped` (no fetch/write). Mutated by `ExportAllNotebooks` / `ExportSpecificNotebook` (via `ExportStateMarked`) and `ClearExportState` (via `ExportStateCleared`); emits `ExportCompleted`.
+- `FailedResourceState`: tracks which specific resource URLs failed to download, grouped by page. Enables `RetryFailedResources` to re-attempt only the tail without re-exporting unchanged pages. Populated by `ResourceDownloadFailed`; cleared per-resource on successful retry.
 - `Config` (value object, not aggregate): the user's authorization and path settings. Created once by `ConfigureClientId` or auto-initialized on first run. No lifecycle — consumed read-only by all other aggregates.
 
 ## Domain services
@@ -78,7 +80,8 @@
 - When Graph API returns 401 on first attempt → `TokenRefreshed`, request retried once (owner: `GraphAPIClient`)
 - When `RateLimitEncountered` → wait the signalled duration, then retry the same request (owner: `GraphAPIClient`)
 - When `ServerErrorEncountered` → retry with increasing wait times, up to three attempts (owner: `GraphAPIClient`)
-- When `ResourceDownloadFailed` → page export fails; page NOT marked as exported in ExportState; re-running the tool will retry the page (owner: `Page`) — **replaces** prior placeholder-link behaviour; see issue for implementation
+- When `ResourceDownloadFailed` → URL recorded in `FailedResourceState`; page NOT marked in `ExportState`; User notified in `ExportSummary` (owner: `Page`)
+- When `RetryFailedResources` → re-attempt each URL in `FailedResourceState`; on success clear that URL entry; on full-page success mark page in `ExportState` (owner: `FailedResourceState`)
 - When `PageSkipped` → do not update ExportState (recorded version is already correct) (owner: `ExportState`)
 - When `ExportStateCleared` → all subsequent Pages treated as never exported (owner: `ExportState`)
 
@@ -108,7 +111,8 @@
 | `Resource` | An image or file that is embedded inside a Page — a photo, screenshot, PDF, or other attachment. Inside this BC: identified by a URL on Microsoft's servers. In the Vault: a file in the Attachments Folder. | "asset"; avoid bare "attachment" (ambiguous — see `File Attachment`) |
 | `File Attachment` | A Resource that is a non-image file (PDF, DOCX, etc.) embedded in a Page via an object tag. A subtype of Resource. | "attachment" (use `File Attachment` when precision matters) |
 | `Attachments Folder` | The per-Section subdirectory in the Vault that holds all downloaded Resources for the Pages in that Section. | "assets folder", "media folder" |
-| `ExportState` | The persisted record of which Page versions have been successfully exported. Enables incremental re-run by skipping Pages whose version has not changed. | "cache", "history" |
+| `ExportState` | The persisted record of which Page versions have been successfully exported (all resources included). Enables incremental re-run by skipping Pages whose version has not changed. | "cache", "history" |
+| `FailedResourceState` | The persisted record of resource URLs that failed to download, grouped by page. Enables targeted retry of only the failed tail without re-exporting unchanged pages. | "error log", "retry queue" |
 | `Vault` | The Obsidian-managed local directory where exported Markdown files and Resource files are written. The final destination of the migration. | "output folder", "target directory" |
 | `Browser Authorization` | The login method this tool uses: the user visits a short URL and types a one-time code to grant the tool access to their OneNote data. No Azure account or app registration required. | "OAuth flow", "device code flow", "login" |
 | `Incremental Re-run` | A subsequent run of the tool that skips Pages whose version has not changed since the last successful export. Not a sync — it does not reflect deletions or renames from OneNote. | "resume", "sync", "delta export" |
@@ -122,5 +126,8 @@
 
 ## Open questions
 
-- 🔴 (2026-04-26) Are organizational (work/school) Microsoft accounts permanently out of scope?
-- 🔴 (2026-04-26) `ResourceDownloadFailed` retry policy needs implementation — see policy note above. What counts as "success" for a page with partial resources?
+None outstanding. All resolved as of 2026-04-26.
+
+**Resolved:**
+- Organizational (work/school) accounts: permanently out of scope. Personal Microsoft accounts only.
+- Partial resource failure: a Page with any `ResourceDownloadFailed` is NOT marked as exported. The user must be informed which resources failed and be able to re-run only the "tail" (failed resources) without re-exporting unchanged pages. Requires `FailedResourceState` tracking and a `RetryFailedResources` command — see GitHub issue.
