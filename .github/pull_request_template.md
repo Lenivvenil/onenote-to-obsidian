@@ -1,27 +1,31 @@
-## Description
-
-Brief summary of what this PR does and why.
-
-## Related Issues
+## What & Why
 
 Closes #
 
-## Type of Change
+<!-- Implements docs/decisions/NNNN-*.md (если был ADR) -->
+<!-- Refs docs/domain/<bc>/overview.md (если менял границу) -->
 
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-- [ ] Code refactoring or cleanup
+## Changes
 
-## Testing
+- 
+- 
 
-How should this be tested? Include steps and/or test cases.
+## Definition of Done
 
-## Checklist
+- [ ] ADR merged (если архитектурно значимо)
+- [ ] Domain docs обновлены (если граница BC изменилась)
+- [ ] Тесты: unit / integration; coverage ≥ 80%
+- [ ] `/review` прошёл
+- [ ] `/codex-review` прошёл (или `type:deferred-review` issue открыт)
+- [ ] Разногласия между ревьюерами разрешены
+- [ ] Security scans clean (`uv pip audit`)
+- [ ] `ruff format onenote_to_obsidian/` + `ruff check onenote_to_obsidian/`
+- [ ] `pytest --cov=onenote_to_obsidian` passes (coverage ≥ 80%)
+- [ ] CHANGELOG.md обновлён (если user-facing)
+- [ ] CI зелёный на всех required jobs
+- [ ] Conventional Commit + issue-ref (governance hook)
+- [ ] Human self-review выполнен
 
-- [ ] Tests added/updated (target >80% coverage)
-- [ ] `ruff format onenote_to_obsidian/`
-- [ ] `ruff check onenote_to_obsidian/`
-- [ ] `pytest` passes
-- [ ] CHANGELOG.md updated (if user-facing change)
+## Out of scope
+
+<!-- Что намеренно не делается в этом PR — для дисциплины scope. -->
