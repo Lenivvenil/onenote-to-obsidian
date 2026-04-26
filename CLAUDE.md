@@ -103,6 +103,9 @@ python -m onenote_to_obsidian --notebook "Asaka"
 # Full re-export
 python -m onenote_to_obsidian --reset-state
 
+# Retry failed resource downloads (images/attachments that failed in a previous export)
+python -m onenote_to_obsidian --retry-resources
+
 # Custom client_id setup (if default doesn't work)
 python -m onenote_to_obsidian --setup
 
@@ -132,6 +135,7 @@ Stored in `~/.onenote_exporter/`:
 - `config.json` — client_id, vault_path, scopes
 - `token_cache.json` — OAuth2 token cache (chmod 600)
 - `export_state.json` — which pages have been exported
+- `failed_resources.json` — pages with resources that failed to download (retry with `--retry-resources`)
 
 Default vault: `~/ObsidianVault`
 

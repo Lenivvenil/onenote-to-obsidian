@@ -58,6 +58,11 @@ Microsoft Office client_id by default.
         help="List available notebooks and exit",
     )
     parser.add_argument(
+        "--retry-resources",
+        action="store_true",
+        help="Retry downloading resources that failed in a previous export",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -87,10 +92,12 @@ Microsoft Office client_id by default.
 
     # Reset state if requested
     if args.reset_state:
-        from .state import ExportState
+        from .state import ExportState, FailedResourceState
 
         state = ExportState(config.config_dir_path / "export_state.json")
         state.clear()
+        failed_state = FailedResourceState(config.config_dir_path / "failed_resources.json")
+        failed_state.clear()
         print("Export state cleared. All pages will be re-exported.\n")
 
     try:
@@ -116,6 +123,12 @@ Microsoft Office client_id by default.
                     print(f"    └── {section.display_name} ({len(section.pages)} pages)")
                 for sg in nb.section_groups:
                     _print_section_group(sg, indent=4)
+            return
+
+        # Retry failed resources
+        if args.retry_resources:
+            exporter = OneNoteExporter(config)
+            exporter.retry_failed_resources()
             return
 
         # Run export

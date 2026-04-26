@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from onenote_to_obsidian.resource_downloader import ResourceDownloader
+from onenote_to_obsidian.resource_downloader import DownloadResult, ResourceDownloader
 from onenote_to_obsidian.graph_client import GraphAPIError
 
 
@@ -22,7 +22,8 @@ def downloader(mock_api):
 class TestDownloadResources:
     def test_empty_urls_returns_empty_map(self, downloader, tmp_path):
         result = downloader.download_resources({}, tmp_path / "attachments")
-        assert result == {}
+        assert result.resource_map == {}
+        assert result.failed_resources == []
 
     def test_single_image_downloaded(self, downloader, mock_api, tmp_path):
         attachments_dir = tmp_path / "attachments"
@@ -32,7 +33,8 @@ class TestDownloadResources:
 
         result = downloader.download_resources(resource_urls, attachments_dir)
 
-        assert result[url] == "0-img1.png"
+        assert result.resource_map[url] == "0-img1.png"
+        assert result.failed_resources == []
         assert (attachments_dir / "0-img1.png").exists()
         assert (attachments_dir / "0-img1.png").read_bytes() == b"\x89PNG\r\n"
         mock_api.get_resource.assert_called_once_with(url)
@@ -49,7 +51,8 @@ class TestDownloadResources:
 
         result = downloader.download_resources(resource_urls, attachments_dir)
 
-        assert len(result) == 2
+        assert len(result.resource_map) == 2
+        assert result.failed_resources == []
         assert (attachments_dir / "img1.png").read_bytes() == b"img-data"
         assert (attachments_dir / "report.pdf").read_bytes() == b"pdf-data"
 
@@ -74,7 +77,8 @@ class TestDownloadResources:
 
         result = downloader.download_resources(resource_urls, attachments_dir)
 
-        assert result[url] == "0-img1.png"
+        assert result.resource_map[url] == "0-img1.png"
+        assert result.failed_resources == []
         # Should NOT have called get_resource since file exists
         mock_api.get_resource.assert_not_called()
         # Original content preserved
@@ -89,7 +93,10 @@ class TestDownloadResources:
         result = downloader.download_resources(resource_urls, attachments_dir)
 
         # Still maps URL to filename despite error
-        assert result[url] == "broken.png"
+        assert result.resource_map[url] == "broken.png"
+        # URL recorded as failed
+        assert len(result.failed_resources) == 1
+        assert result.failed_resources[0]["url"] == url
         # File should NOT exist
         assert not (attachments_dir / "broken.png").exists()
 
@@ -101,7 +108,9 @@ class TestDownloadResources:
 
         result = downloader.download_resources(resource_urls, attachments_dir)
 
-        assert result[url] == "net.png"
+        assert result.resource_map[url] == "net.png"
+        assert len(result.failed_resources) == 1
+        assert result.failed_resources[0]["url"] == url
 
     def test_deduplication_of_filenames(self, downloader, mock_api, tmp_path):
         attachments_dir = tmp_path / "attachments"
@@ -115,10 +124,11 @@ class TestDownloadResources:
 
         result = downloader.download_resources(resource_urls, attachments_dir)
 
-        filenames = set(result.values())
+        filenames = set(result.resource_map.values())
         assert len(filenames) == 2  # Should be deduplicated
         assert "image.png" in filenames
         assert "image_1.png" in filenames
+        assert result.failed_resources == []
 
     def test_mixed_success_and_failure(self, downloader, mock_api, tmp_path):
         attachments_dir = tmp_path / "attachments"
@@ -138,7 +148,10 @@ class TestDownloadResources:
 
         result = downloader.download_resources(resource_urls, attachments_dir)
 
-        assert len(result) == 3
+        assert len(result.resource_map) == 3
         assert (attachments_dir / "ok.png").exists()
         assert not (attachments_dir / "fail.png").exists()
         assert (attachments_dir / "ok2.png").exists()
+        # Only the failing URL recorded
+        assert len(result.failed_resources) == 1
+        assert result.failed_resources[0]["url"] == url2

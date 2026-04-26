@@ -10,6 +10,7 @@ from onenote_to_obsidian.config import Config
 from onenote_to_obsidian.exporter import OneNoteExporter
 from onenote_to_obsidian.graph_client import GraphAPIError
 from onenote_to_obsidian.onenote_api import Notebook, Section, SectionGroup, Page
+from onenote_to_obsidian.resource_downloader import DownloadResult
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +61,7 @@ def exporter_with_mocks(tmp_path):
 
         mock_api = MockAPI.return_value
         mock_downloader = MockDownloader.return_value
-        mock_downloader.download_resources.return_value = {}
+        mock_downloader.download_resources.return_value = DownloadResult(resource_map={})
         mock_api.get_page_content.return_value = SIMPLE_HTML
 
         exporter = OneNoteExporter(config)
@@ -247,7 +248,9 @@ class TestExportResume:
 
         # Reset call count, export again
         mock_api.get_page_content.reset_mock()
-        exporter._stats = {"exported": 0, "skipped": 0, "errors": 0, "total": 0}
+        exporter._stats = {
+            "exported": 0, "skipped": 0, "errors": 0, "failed_resources": 0, "total": 0
+        }
         exporter.export_all()
 
         # Should skip — page unchanged
@@ -269,7 +272,9 @@ class TestExportResume:
         # Change modification time
         page.last_modified_time = "2024-07-01T00:00:00Z"
         mock_api.get_page_content.reset_mock()
-        exporter._stats = {"exported": 0, "skipped": 0, "errors": 0, "total": 0}
+        exporter._stats = {
+            "exported": 0, "skipped": 0, "errors": 0, "failed_resources": 0, "total": 0
+        }
 
         exporter.export_all()
 
@@ -415,3 +420,158 @@ class TestCountHelpers:
         )
         notebook = make_notebook(sections=[section1], groups=[group])
         assert OneNoteExporter._count_sections(notebook) == 2
+
+
+class TestFailedResources:
+    """Tests for partial resource failure tracking and retry."""
+
+    def test_partial_resource_failure_not_marked_exported(self, exporter_with_mocks):
+        exporter, mock_api, mock_downloader, tmp_path = exporter_with_mocks
+
+        page = make_page(id="p1", title="Partial Fail Page")
+        section = make_section(pages=[page])
+        notebook = make_notebook(sections=[section])
+        mock_api.list_notebooks.return_value = [notebook]
+        mock_api.enumerate_notebook.return_value = notebook
+
+        url = "https://graph.example.com/res/img/$value"
+        mock_api.get_page_content.return_value = SIMPLE_HTML
+        mock_downloader.download_resources.return_value = DownloadResult(
+            resource_map={url: "img.png"},
+            failed_resources=[{"url": url, "filename": "img.png", "media_type": "image/png"}],
+        )
+
+        exporter.export_all()
+
+        assert exporter._stats["exported"] == 0
+        assert exporter._stats["failed_resources"] == 1
+        assert not exporter._state.is_exported("p1", page.last_modified_time)
+
+    def test_partial_failure_recorded_in_failed_state(self, exporter_with_mocks):
+        exporter, mock_api, mock_downloader, tmp_path = exporter_with_mocks
+
+        page = make_page(id="p1", title="Page With Broken Image")
+        section = make_section(pages=[page])
+        notebook = make_notebook(sections=[section])
+        mock_api.list_notebooks.return_value = [notebook]
+        mock_api.enumerate_notebook.return_value = notebook
+
+        url = "https://graph.example.com/res/img/$value"
+        mock_downloader.download_resources.return_value = DownloadResult(
+            resource_map={url: "img.png"},
+            failed_resources=[{"url": url, "filename": "img.png", "media_type": "image/png"}],
+        )
+        exporter.export_all()
+
+        failed_pages = exporter._failed_state.pages()
+        assert "p1" in failed_pages
+        resources = failed_pages["p1"]["resources"]
+        assert len(resources) == 1
+        assert resources[0]["url"] == url
+        assert resources[0]["filename"] == "img.png"
+        assert resources[0]["media_type"] == "image/png"
+
+    def test_all_resources_succeed_marks_exported(self, exporter_with_mocks):
+        exporter, mock_api, mock_downloader, tmp_path = exporter_with_mocks
+
+        page = make_page(id="p1")
+        section = make_section(pages=[page])
+        notebook = make_notebook(sections=[section])
+        mock_api.list_notebooks.return_value = [notebook]
+        mock_api.enumerate_notebook.return_value = notebook
+
+        url = "https://graph.example.com/res/img/$value"
+        mock_downloader.download_resources.return_value = DownloadResult(
+            resource_map={url: "img.png"},
+            failed_resources=[],
+        )
+
+        exporter.export_all()
+
+        assert exporter._stats["exported"] == 1
+        assert exporter._stats["failed_resources"] == 0
+        assert exporter._state.is_exported("p1", page.last_modified_time)
+
+    def test_stale_failed_state_cleared_on_reexport(self, exporter_with_mocks):
+        exporter, mock_api, mock_downloader, tmp_path = exporter_with_mocks
+
+        page = make_page(id="p1", modified="2024-06-01T00:00:00Z")
+        section = make_section(pages=[page])
+        notebook = make_notebook(sections=[section])
+        mock_api.list_notebooks.return_value = [notebook]
+        mock_api.enumerate_notebook.return_value = notebook
+
+        # Seed stale failed state for this page
+        exporter._failed_state.mark_failed(
+            "p1", "Old Title", "2024-05-01T00:00:00Z",
+            "NB/Sec/attachments",
+            [{"url": "https://old.example.com/img", "filename": "old.png",
+              "media_type": "image/png"}],
+        )
+
+        exporter.export_all()
+
+        # After fresh export succeeds, stale entry should be gone
+        assert "p1" not in exporter._failed_state.pages()
+        assert exporter._state.is_exported("p1", page.last_modified_time)
+
+    def test_retry_empty_state_prints_nothing_to_retry(self, exporter_with_mocks, capsys):
+        exporter, _, _, _ = exporter_with_mocks
+
+        exporter.retry_failed_resources()
+
+        out = capsys.readouterr().out
+        assert "No failed resources recorded" in out
+
+    def test_retry_recovers_page(self, exporter_with_mocks):
+        exporter, mock_api, mock_downloader, tmp_path = exporter_with_mocks
+
+        url = "https://graph.example.com/res/img/$value"
+        exporter._failed_state.mark_failed(
+            "p1", "My Page", "2024-06-20T00:00:00Z",
+            "Test Notebook/Test Section/attachments",
+            [{"url": url, "filename": "img.png", "media_type": "image/png"}],
+        )
+        (tmp_path / "vault" / "Test Notebook" / "Test Section" / "attachments").mkdir(
+            parents=True, exist_ok=True
+        )
+
+        mock_downloader.download_resources.return_value = DownloadResult(
+            resource_map={url: "img.png"},
+            failed_resources=[],
+        )
+
+        exporter.retry_failed_resources()
+
+        assert exporter._state.is_exported("p1", "2024-06-20T00:00:00Z")
+        assert "p1" not in exporter._failed_state.pages()
+
+    def test_retry_partial_failure_updates_state(self, exporter_with_mocks):
+        exporter, mock_api, mock_downloader, tmp_path = exporter_with_mocks
+
+        url1 = "https://graph.example.com/res/ok/$value"
+        url2 = "https://graph.example.com/res/fail/$value"
+        exporter._failed_state.mark_failed(
+            "p1", "My Page", "2024-06-20T00:00:00Z",
+            "Test Notebook/Test Section/attachments",
+            [
+                {"url": url1, "filename": "ok.png", "media_type": "image/png"},
+                {"url": url2, "filename": "fail.png", "media_type": "image/png"},
+            ],
+        )
+        (tmp_path / "vault" / "Test Notebook" / "Test Section" / "attachments").mkdir(
+            parents=True, exist_ok=True
+        )
+
+        mock_downloader.download_resources.return_value = DownloadResult(
+            resource_map={url1: "ok.png", url2: "fail.png"},
+            failed_resources=[{"url": url2, "filename": "fail.png", "media_type": "image/png"}],
+        )
+
+        exporter.retry_failed_resources()
+
+        # Page still has one failed resource — not marked exported
+        assert not exporter._state.is_exported("p1", "2024-06-20T00:00:00Z")
+        remaining = exporter._failed_state.pages()["p1"]["resources"]
+        assert len(remaining) == 1
+        assert remaining[0]["url"] == url2

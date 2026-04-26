@@ -54,3 +54,70 @@ class ExportState:
     @property
     def count(self) -> int:
         return len(self._exported_pages)
+
+
+class FailedResourceState:
+    """Persisted state: pages with resources that failed to download."""
+
+    def __init__(self, state_path: Path):
+        self._state_path = state_path
+        self._failed_pages: dict[str, dict] = {}
+        self._load()
+
+    def _load(self) -> None:
+        if self._state_path.exists():
+            try:
+                data = json.loads(self._state_path.read_text())
+                self._failed_pages = data.get("failed_resources", {})
+                logger.debug(
+                    "Loaded failed resource state: %d pages tracked",
+                    len(self._failed_pages),
+                )
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning("Failed to load failed resource state: %s", e)
+                self._failed_pages = {}
+
+    def mark_failed(
+        self,
+        page_id: str,
+        title: str,
+        last_modified: str,
+        attachments_dir: str,
+        resources: list[dict],
+    ) -> None:
+        """Record failed resources for a page."""
+        self._failed_pages[page_id] = {
+            "title": title,
+            "last_modified": last_modified,
+            "attachments_dir": attachments_dir,
+            "resources": resources,
+        }
+        self._save()
+
+    def clear_page(self, page_id: str) -> None:
+        """Remove a page from failed state (all resources recovered or page re-exported)."""
+        if page_id not in self._failed_pages:
+            return
+        del self._failed_pages[page_id]
+        if self._failed_pages:
+            self._save()
+        elif self._state_path.exists():
+            self._state_path.unlink()
+
+    def clear(self) -> None:
+        """Clear all failed resource state."""
+        self._failed_pages.clear()
+        if self._state_path.exists():
+            self._state_path.unlink()
+
+    def pages(self) -> dict[str, dict]:
+        """Return a snapshot of all pages with failed resources."""
+        return dict(self._failed_pages)
+
+    def _save(self) -> None:
+        self._state_path.parent.mkdir(parents=True, exist_ok=True)
+        self._state_path.write_text(json.dumps({"failed_resources": self._failed_pages}, indent=2))
+
+    @property
+    def count(self) -> int:
+        return len(self._failed_pages)

@@ -1,12 +1,19 @@
 """Download images and file attachments from OneNote Graph API."""
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .onenote_api import OneNoteAPI
 from .utils import deduplicate_path
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DownloadResult:
+    resource_map: dict[str, str]
+    failed_resources: list[dict] = field(default_factory=list)
 
 
 class ResourceDownloader:
@@ -19,7 +26,7 @@ class ResourceDownloader:
         self,
         resource_urls: dict[str, tuple[str, str]],
         attachments_dir: Path,
-    ) -> dict[str, str]:
+    ) -> DownloadResult:
         """Download all resources for a page.
 
         Args:
@@ -27,13 +34,15 @@ class ResourceDownloader:
             attachments_dir: Directory to save files to
 
         Returns:
-            resource_map: {graph_url: local_filename} for the HTML converter
+            DownloadResult with resource_map ({graph_url: local_filename}) and
+            failed_resources ([{url, filename, media_type}] for each failure)
         """
         if not resource_urls:
-            return {}
+            return DownloadResult(resource_map={})
 
         attachments_dir.mkdir(parents=True, exist_ok=True)
         resource_map: dict[str, str] = {}
+        failed_resources: list[dict] = []
         used_paths: set[Path] = set()
 
         for url, (filename, media_type) in resource_urls.items():
@@ -56,5 +65,8 @@ class ResourceDownloader:
                 logger.warning("Failed to download resource %s: %s", url, e)
                 # Still map to expected filename so Markdown reference isn't broken
                 resource_map[url] = local_path.name
+                failed_resources.append(
+                    {"url": url, "filename": local_path.name, "media_type": media_type}
+                )
 
-        return resource_map
+        return DownloadResult(resource_map=resource_map, failed_resources=failed_resources)

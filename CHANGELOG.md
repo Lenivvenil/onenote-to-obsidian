@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `--retry-resources` flag: retry downloading resources that failed in a previous export without re-exporting pages
+- `FailedResourceState`: persisted state in `~/.onenote_exporter/failed_resources.json` tracking pages with failed resource downloads
+- Export summary now lists pages with failed resources and prompts to retry
+- `--reset-state` now also clears `failed_resources.json`
+
 ## [1.1.0] - 2026-04-13
 
 ### Added
