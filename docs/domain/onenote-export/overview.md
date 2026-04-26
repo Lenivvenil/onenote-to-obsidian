@@ -1,19 +1,17 @@
 # Bounded Context: OneNoteExport
 
-> **DRAFT — derived from code, not from a live business interview.**
-> Items marked 🔴 still require operator verification.
-> Decisions already resolved by operator are integrated below.
+> Reviewed and approved by `domain-reviewer` (4 passes). Open questions resolved by operator on 2026-04-26.
 
-**Purpose:** Transform a user's OneNote notebooks into Obsidian-compatible Markdown files on the local file system, preserving hierarchy, content fidelity, and supporting incremental re-export.
+**Purpose:** One-time migration of a user's OneNote notebooks to Obsidian-compatible Markdown files on the local file system. Not a sync tool — exported files are not managed after migration. Incremental re-run supported to export only new or changed pages.
 
 ## Actors
 
-- `User` — human with a personal Microsoft account who owns OneNote notebooks and an Obsidian vault
+- `User` — human with a personal Microsoft account who owns OneNote notebooks and an Obsidian vault; runs the tool interactively from a terminal
 - `Microsoft Graph API` — external system; source of notebook structure and page content
 - `Microsoft Identity Platform` — external system; grants access to the user's OneNote data via browser-based authorization
 - `Local File System` — target; receives Markdown files, resource files, config, state, and token cache
 
-🔴 OPEN (2026-04-26): Are there other actors? e.g. a scheduler running export automatically, a CI pipeline, Docker container runner?
+> **Resolved 2026-04-26:** No other actors. This is a one-time migration tool run interactively. Schedulers, CI pipelines, and Docker automation are out of scope.
 
 ## Events (past tense)
 
@@ -32,7 +30,7 @@
 - `PageContentRetrieved`: OneNote HTML for a specific page fetched from Graph API
 - `ResourcesExtracted`: Images and file attachments identified within page HTML
 - `ResourceDownloaded`: A resource (image or file attachment) saved to the local Attachments Folder
-- `ResourceDownloadFailed`: A resource could not be downloaded → export of the page continues with a placeholder link
+- `ResourceDownloadFailed`: A resource could not be downloaded → page export fails; page marked for retry
 - `PageConverted`: OneNote HTML transformed to Obsidian Markdown with frontmatter
 - `MarkdownWritten`: Markdown file saved to the vault at the correct hierarchy path
 - `PageExportErrored`: A page failed to export due to an API or file system error → logged, export continues
@@ -49,7 +47,7 @@
 - `RateLimitEncountered`: Graph API signalled too many requests → waited the required time and retried
 - `ServerErrorEncountered`: Graph API returned a server error → retried with increasing wait times
 
-🔴 OPEN (2026-04-26): What happens when a notebook is deleted from OneNote after export? Are orphaned state entries and vault files in scope?
+> **Resolved 2026-04-26:** Notebooks deleted from OneNote after export — exported files stay in vault. The tool is not a sync tool; it does not clean up after source changes.
 
 ## Commands (imperative)
 
@@ -59,7 +57,7 @@
 - `ClearExportState`: User → `ExportState` cleared; emits `ExportStateCleared`
 - `ConfigureClientId`: User → `Config` created or updated via interactive wizard
 
-🔴 OPEN (2026-04-26): Is there a planned `ExportSection` command (export a single section by name)?
+> **Resolved 2026-04-26:** `ExportSection` (filter by section name) — possible future feature, not in current scope.
 
 ## Aggregates
 
@@ -73,14 +71,14 @@
 - `AuthenticationService`: manages the browser authorization lifecycle. Not an aggregate (holds no domain invariants across requests). Emits `AuthenticationInitiated`, `AuthenticationSucceeded`, `TokenAcquiredSilently`, `TokenRefreshed`, `AuthenticationFailed`. Invoked by any command that requires a Graph API call.
 - `GraphAPIClient`: handles all HTTP communication with Microsoft Graph API including rate-limit handling and server-error retries. Not an aggregate. Emits `RateLimitEncountered`, `ServerErrorEncountered`. Delegates token acquisition to `AuthenticationService` on 401.
 
-🔴 OPEN (2026-04-26): Is `SectionGroup` a first-class concept (its own aggregate) or an implementation detail of OneNote's hierarchy that users don't need to name directly?
+> **Resolved 2026-04-26:** `SectionGroup` is an internal OneNote implementation detail, not a first-class term. Users think "папка внутри ноутбука", not "Section Group". Kept in UL for completeness of the model; not exposed in UI copy or documentation aimed at end users.
 
 ## Policies
 
 - When Graph API returns 401 on first attempt → `TokenRefreshed`, request retried once (owner: `GraphAPIClient`)
 - When `RateLimitEncountered` → wait the signalled duration, then retry the same request (owner: `GraphAPIClient`)
 - When `ServerErrorEncountered` → retry with increasing wait times, up to three attempts (owner: `GraphAPIClient`)
-- When `ResourceDownloadFailed` → continue export, write a placeholder link in the Markdown file (owner: `Page`) 🔴 OPEN (2026-04-26): permanent policy or workaround pending a "fail page on resource error" option?
+- When `ResourceDownloadFailed` → page export fails; page NOT marked as exported in ExportState; re-running the tool will retry the page (owner: `Page`) — **replaces** prior placeholder-link behaviour; see issue for implementation
 - When `PageSkipped` → do not update ExportState (recorded version is already correct) (owner: `ExportState`)
 - When `ExportStateCleared` → all subsequent Pages treated as never exported (owner: `ExportState`)
 
@@ -93,7 +91,7 @@
 ## Boundary
 
 - **In scope:** browser-based authorization to access the user's OneNote data; fetching notebook structure and page HTML from Microsoft; converting OneNote HTML to Markdown; downloading embedded images and file attachments; writing Markdown files and resource files to the vault; tracking which page versions have been exported
-- **Out of scope:** writing back to OneNote; Obsidian plugin integration; two-way sync; export to PDF or Word; organizational or school Microsoft accounts; multi-user scenarios
+- **Out of scope:** writing back to OneNote; Obsidian plugin integration; two-way sync; automated/scheduled runs; export to PDF or Word; organizational or school Microsoft accounts; multi-user scenarios; managing vault files after migration (deletions, renames in OneNote not reflected)
 - **Terms changing meaning on the edge:**
   - `Page` inside this BC = a OneNote document identified by `page_id`, with a title, two timestamps, an HTML body, and embedded resources. Outside (in Obsidian) = a Markdown `.md` file with YAML frontmatter and a local file path. Same word; inside it is a remote document with a Graph API identity, outside it is a local file.
   - `Resource` inside this BC = an embedded asset (image or file) identified by a URL on Microsoft's servers. Outside (in the vault) = a file in the Attachments Folder, identified by a local path. Same concept; inside it lives on Microsoft, outside it lives on disk.
@@ -105,32 +103,24 @@
 |---|---|---|
 | `Notebook` | The top-level OneNote container owned by a user. Holds Sections and Section Groups. Exported as a top-level folder in the Vault. | "workbook", "file" |
 | `Section` | A named grouping of Pages within a Notebook or Section Group. Inside this BC: an entity identified by Microsoft. In the Vault: a folder. | "folder", "tab" |
-| `Section Group` | A named grouping of Sections (and nested Section Groups) within a Notebook. Inside this BC: an entity identified by Microsoft, enabling nested organization. In the Vault: a subdirectory. | "group", "folder" |
+| `Section Group` | An internal OneNote construct — a named grouping of Sections within a Notebook, enabling nested organization. Not a term users think about directly; exposed in the model because Microsoft's API requires traversal. In the Vault: a subdirectory. | "group", "folder" |
 | `Page` | The atomic unit of OneNote content — a titled document with a creation date, a modification date, an HTML body, and embedded Resources. Inside this BC: identified by a stable `page_id` with a version. In the Vault: a Markdown file. | "note", "document" |
 | `Resource` | An image or file that is embedded inside a Page — a photo, screenshot, PDF, or other attachment. Inside this BC: identified by a URL on Microsoft's servers. In the Vault: a file in the Attachments Folder. | "asset"; avoid bare "attachment" (ambiguous — see `File Attachment`) |
 | `File Attachment` | A Resource that is a non-image file (PDF, DOCX, etc.) embedded in a Page via an object tag. A subtype of Resource. | "attachment" (use `File Attachment` when precision matters) |
 | `Attachments Folder` | The per-Section subdirectory in the Vault that holds all downloaded Resources for the Pages in that Section. | "assets folder", "media folder" |
-| `ExportState` | The persisted record of which Page versions have been successfully exported. Enables incremental re-export by skipping Pages whose version has not changed. | "cache", "history" |
-| `Vault` | The Obsidian-managed local directory where exported Markdown files and Resource files are written. The final destination of the export. | "output folder", "target directory" |
+| `ExportState` | The persisted record of which Page versions have been successfully exported. Enables incremental re-run by skipping Pages whose version has not changed. | "cache", "history" |
+| `Vault` | The Obsidian-managed local directory where exported Markdown files and Resource files are written. The final destination of the migration. | "output folder", "target directory" |
 | `Browser Authorization` | The login method this tool uses: the user visits a short URL and types a one-time code to grant the tool access to their OneNote data. No Azure account or app registration required. | "OAuth flow", "device code flow", "login" |
-| `Incremental Export` | An export run that skips Pages whose version matches what was last exported, writing only new or changed Pages. Enabled by ExportState. | "resume", "delta export" |
+| `Incremental Re-run` | A subsequent run of the tool that skips Pages whose version has not changed since the last successful export. Not a sync — it does not reflect deletions or renames from OneNote. | "resume", "sync", "delta export" |
 
 ## Context map edges
 
 - `Microsoft Graph API` ← this BC: **Conformist** — the OneNote data model (Notebook/Section/SectionGroup/Page hierarchy, resource URLs, pagination protocol) is dictated entirely by Microsoft. This BC adapts to their schema with no negotiation power.
 - `Microsoft Identity Platform` ← this BC: **Conformist** — the browser authorization protocol, token format, and error codes are external constraints this BC follows without modification.
-- `Obsidian Vault` (file system output) ← this BC: **Open Host Service** — this BC produces Markdown files with YAML frontmatter and a folder hierarchy that Obsidian can read. This BC owns the output contract (frontmatter fields, folder structure, attachment paths); Obsidian is the passive consumer.
-
-🔴 OPEN (2026-04-26): Is a future Obsidian plugin integration planned? If yes, the OHS edge may need a Published Language contract.
-🔴 OPEN (2026-04-26): Are other export sources (Notion, Evernote) in scope? If yes, the Vault-writing logic may need to be extracted into a shared kernel.
+- `Obsidian Vault` (file system output) ← this BC: **Open Host Service** — this BC produces Markdown files with YAML frontmatter and a folder hierarchy that Obsidian can read. This BC owns the output contract (frontmatter fields, folder structure, attachment paths); Obsidian is the passive consumer. No plugin integration planned.
+- `Future export sources` (Notion, Evernote): **Separate Ways** for now — future scope; if added, Vault-writing logic may be extracted into a shared kernel.
 
 ## Open questions
 
-- 🔴 (2026-04-26) Are there actors beyond the interactive User? (scheduler, CI, Docker)
-- 🔴 (2026-04-26) `ResourceDownloadFailed` → placeholder link: permanent policy or future option to abort the page?
-- 🔴 (2026-04-26) Is `SectionGroup` a first-class term users say out loud, or an internal OneNote detail?
-- 🔴 (2026-04-26) What is the intended behavior when a Notebook is deleted from OneNote after export?
 - 🔴 (2026-04-26) Are organizational (work/school) Microsoft accounts permanently out of scope?
-- 🔴 (2026-04-26) Is two-way sync permanently out of scope, or a future direction?
-- 🔴 (2026-04-26) Is Obsidian plugin integration planned?
-- 🔴 (2026-04-26) Are other export sources (Notion, Evernote) in scope?
+- 🔴 (2026-04-26) `ResourceDownloadFailed` retry policy needs implementation — see policy note above. What counts as "success" for a page with partial resources?
