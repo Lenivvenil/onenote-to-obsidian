@@ -63,6 +63,45 @@ class TestCLIResetState:
         # Should mention reset
         assert len(captured.out) > 0
 
+    @patch("onenote_to_obsidian.__main__.OneNoteExporter")
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_reset_state_clears_both_state_files(self, mock_setup, mock_exporter, tmp_path):
+        config = Config(config_dir=str(tmp_path / "config"))
+        mock_setup.return_value = config
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True)
+
+        # Pre-seed both state files
+        (config_dir / "export_state.json").write_text('{"exported_pages": {"p1": "ts"}}')
+        (config_dir / "failed_resources.json").write_text('{"failed_resources": {"p1": {}}}')
+
+        with patch("sys.argv", ["onenote_to_obsidian", "--reset-state"]):
+            main()
+
+        assert not (config_dir / "export_state.json").exists()
+        assert not (config_dir / "failed_resources.json").exists()
+
+
+class TestCLIRetryResources:
+    @patch("onenote_to_obsidian.__main__.OneNoteExporter")
+    @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
+    def test_retry_resources_calls_retry_method(self, mock_setup, mock_exporter_cls):
+        config = Config()
+        mock_setup.return_value = config
+        mock_exporter = mock_exporter_cls.return_value
+
+        with patch("sys.argv", ["onenote_to_obsidian", "--retry-resources"]):
+            main()
+
+        mock_exporter.retry_failed_resources.assert_called_once()
+        mock_exporter.export_all.assert_not_called()
+
+    def test_help_shows_retry_resources(self, capsys):
+        with pytest.raises(SystemExit):
+            with patch("sys.argv", ["onenote_to_obsidian", "--help"]):
+                main()
+        assert "--retry-resources" in capsys.readouterr().out
+
 
 class TestCLIList:
     @patch("onenote_to_obsidian.__main__.Config.load_or_setup")
