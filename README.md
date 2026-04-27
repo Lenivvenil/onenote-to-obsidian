@@ -186,6 +186,10 @@ Your Microsoft account type may not be compatible with the default client ID. Ru
 
 ## FAQ
 
+### Does this work on Windows and Linux?
+
+Yes — Python runs on macOS, Linux, and Windows. The tool communicates with Microsoft Graph API over HTTPS, so it works anywhere Python 3.10+ is available. Windows users can install via `pip install onenote-to-obsidian` or use the Docker image.
+
 ### Does this work with work/school Microsoft accounts?
 
 It works with personal Microsoft accounts out of the box. Work/school accounts may require a custom client ID — run `--setup` and register your own app in [Azure AD](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app).
@@ -222,15 +226,15 @@ The default location is `~/ObsidianVault`.
 
 ## Comparison with Alternatives
 
-| Feature | onenote-to-obsidian | Manual copy-paste | OneNote export (OOXML) |
+| Feature | onenote-to-obsidian | [onenote-md-exporter](https://github.com/alxnbl/onenote-md-exporter) | [ConvertOneNote2MarkDown](https://github.com/theohbrothers/ConvertOneNote2MarkDown) |
 |---|---|---|---|
-| No registration needed | Yes | N/A | N/A |
-| Images & attachments | Yes | Manual | Partial |
-| Resume / incremental | Yes | No | No |
-| Checkboxes | Yes | No | No |
-| Section groups | Yes | N/A | Yes |
-| YAML frontmatter | Yes | No | No |
-| Automation-friendly | Yes | No | Partial |
+| Platform | macOS / Linux / Windows | Windows only | Windows only |
+| Local OneNote required | No | Yes (+ Word) | Yes (≥2016 Desktop) |
+| Images & attachments | Yes | Yes | Yes |
+| Resume / incremental | Yes | No | Partial |
+| Section groups | Yes | Yes | Yes |
+| YAML frontmatter | Yes | Optional | No |
+| pip / Homebrew install | Yes | No | No |
 
 ## Development
 
