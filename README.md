@@ -99,6 +99,7 @@ Open the link in your browser, enter the code, and sign in with your Microsoft a
 | `--notebook NAME` | Export only the specified notebook |
 | `--list` | List available notebooks and exit |
 | `--reset-state` | Force re-export of all pages |
+| `--retry-resources` | Retry downloading resources that failed in a previous export |
 | `--setup` | Configure a custom client ID |
 | `-v, --verbose` | Enable debug logging |
 
@@ -160,6 +161,7 @@ All configuration is stored in `~/.onenote_exporter/`:
 | `config.json` | Client ID, vault path, OAuth scopes |
 | `token_cache.json` | Cached OAuth2 tokens (chmod 600) |
 | `export_state.json` | Which pages have been exported |
+| `failed_resources.json` | Pages with resources that failed to download (use `--retry-resources` to retry) |
 
 ## Troubleshooting
 
@@ -195,6 +197,16 @@ Yes. The tool tracks exported pages by ID and modification time. Re-running expo
 ### What happens if the export crashes mid-way?
 
 Progress is saved in `~/.onenote_exporter/export_state.json`. Re-running picks up where it left off. File deduplication also survives crashes.
+
+### What if some images or attachments fail to download?
+
+The export continues and the page is saved, but the failed resources are recorded in `~/.onenote_exporter/failed_resources.json` and the page is **not** marked as fully exported. The summary lists affected pages. Once your connection is stable, run:
+
+```bash
+onenote-to-obsidian --retry-resources
+```
+
+This retries only the failed downloads without re-fetching or re-converting any pages. Successfully recovered pages are then marked as exported. To wipe all failed-resource records along with export state, use `--reset-state`.
 
 ### Is my data sent anywhere besides Microsoft?
 

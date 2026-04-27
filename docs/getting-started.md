@@ -75,6 +75,7 @@ Open the link, enter the code, sign in. Done — your notes start exporting.
 | `--notebook NAME` | Export only one notebook by name |
 | `--list` | List your notebooks and exit |
 | `--reset-state` | Force re-export of all pages |
+| `--retry-resources` | Retry downloading resources that failed in a previous export |
 | `--setup` | Configure a custom client ID |
 | `-v, --verbose` | Show debug-level logs |
 
@@ -95,6 +96,9 @@ onenote-to-obsidian --verbose
 
 # Start fresh — re-export everything
 onenote-to-obsidian --reset-state
+
+# Retry images/attachments that failed to download in a previous export
+onenote-to-obsidian --retry-resources
 ```
 
 ## Output structure
@@ -137,6 +141,7 @@ All config lives in `~/.onenote_exporter/`:
 | `config.json` | Client ID, vault path, OAuth scopes |
 | `token_cache.json` | OAuth2 tokens (chmod 600, owner-only) |
 | `export_state.json` | Tracks which pages have been exported |
+| `failed_resources.json` | Pages with resources that failed to download (use `--retry-resources` to retry) |
 
 ### Custom client ID
 
@@ -180,6 +185,16 @@ onenote-to-obsidian --setup
 1. Check you're signed in: `onenote-to-obsidian --list`
 2. Check logs: `onenote-to-obsidian --verbose`
 3. Reset state: `onenote-to-obsidian --reset-state`
+
+### Images or attachments are missing
+
+Some resources may have failed to download (network issue, temporary Graph API error). The export summary will list affected pages. Retry with:
+
+```bash
+onenote-to-obsidian --retry-resources
+```
+
+This re-downloads only the failed resources without re-exporting pages. If resources still fail, check your network and try again.
 
 ### "Account not supported" error
 
