@@ -32,6 +32,11 @@ theme:
 extra_css:
   - stylesheets/landing.css
 
+exclude_docs: |
+  principles.md
+  decisions/
+  domain/
+
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
